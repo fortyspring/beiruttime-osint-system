@@ -9325,106 +9325,170 @@ class SO_Admin_UI {
             if ($limit > 500) $limit = 500;
 
             echo '<div style="background:#f0f0f1; padding:20px; border-radius:8px; margin-top:20px;">';
-            echo '<h3>جاري المعالجة...</h3>';
+            echo '<h3>🔄 جاري المعالجة المستمرة...</h3>';
+            echo '<p style="color:#666; margin-bottom:20px;">سيتم معالجة جميع الأحداث تلقائياً دون انقطاع. لا تغلق هذه الصفحة.</p>';
 
-            $processed = 0;
-            $errors = 0;
-
-            $events = $wpdb->get_results($wpdb->prepare(
-                "SELECT id, title, war_data, actor_v2, region FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL ORDER BY id DESC LIMIT %d",
-                $limit
-            ));
-
-            if (!empty($events)) {
-                foreach ($events as $event) {
-                    try {
-                        $event_data = [
-                            'id' => $event->id,
-                            'title' => $event->title,
-                            'war_data' => $event->war_data,
-                            'actor_v2' => $event->actor_v2,
-                            'region' => $event->region,
-                        ];
-
-                        if (function_exists('sod_enhance_event_with_hybrid_analysis')) {
-                            $enhanced_data = sod_enhance_event_with_hybrid_analysis($event_data);
-                            if (is_array($enhanced_data) && !empty($enhanced_data)) {
-                                unset($enhanced_data['id']);
-                                $wpdb->update($table_name, $enhanced_data, ['id' => $event->id]);
-                                $processed++;
-                            } else {
-                                $errors++;
-                            }
-                        } else {
-                            $errors++;
-                            error_log('Reindex Error: function sod_enhance_event_with_hybrid_analysis does not exist');
-                        }
-                    } catch (Throwable $e) {
-                        $errors++;
-                        error_log('Reindex Error: ' . $e->getMessage());
-                    }
-                }
-                echo "<p style='color:green'><strong>تمت معالجة {$processed} حدث بنجاح.</strong> (أخطاء: {$errors})</p>";
-                
-                // التحقق مما إذا كانت هناك أحداث متبقية
-                $remaining = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
-                
-                if ($remaining > 0) {
-                    echo '<div id="bt-auto-continue" style="margin-top:15px; padding:15px; background:#e8f5e9; border-radius:8px; border:1px solid #4caf50;">';
-                    echo '<p style="margin:0 0 10px; color:#2e7d32;"><strong>متبقي ' . number_format($remaining) . ' حدث للمعالجة.</strong></p>';
-                    echo '<button type="button" id="bt-continue-auto" class="button button-primary" onclick="btContinueAuto()">⏩ متابعة تلقائية للمعالجة</button>';
-                    echo '<button type="button" id="bt-stop-auto" class="button" onclick="btStopAuto()" style="display:none; margin-left:10px;">⏹ إيقاف</button>';
-                    echo '<span id="bt-timer" style="margin-left:15px; color:#666;">سيبدأ العد التنازلي خلال <span id="bt-countdown">5</span> ثوانٍ...</span>';
-                    echo '</div>';
-                    
-                    echo '<script>
-                    var btAutoContinue = true;
-                    var btTimer = null;
-                    var btCountdown = 5;
-                    
-                    function btContinueAuto() {
-                        btAutoContinue = true;
-                        document.getElementById("bt-continue-auto").style.display = "none";
-                        document.getElementById("bt-stop-auto").style.display = "inline-block";
-                        startCountdown();
-                    }
-                    
-                    function btStopAuto() {
-                        btAutoContinue = false;
-                        clearTimeout(btTimer);
-                        document.getElementById("bt-continue-auto").style.display = "inline-block";
-                        document.getElementById("bt-stop-auto").style.display = "none";
-                        document.getElementById("bt-timer").innerHTML = "تم إيقاف المعالجة التلقائية.";
-                    }
-                    
-                    function startCountdown() {
-                        btCountdown = 5;
-                        document.getElementById("bt-countdown").textContent = btCountdown;
-                        btTimer = setInterval(function() {
-                            btCountdown--;
-                            document.getElementById("bt-countdown").textContent = btCountdown;
-                            if (btCountdown <= 0) {
-                                clearInterval(btTimer);
-                                if (btAutoContinue) {
-                                    document.getElementById("bt-timer").innerHTML = "جاري بدء الدفعة التالية...";
-                                    setTimeout(function() {
-                                        document.querySelector(\'form[name="bt_reindex_form"]\').submit();
-                                    }, 500);
-                                }
-                            }
-                        }, 1000);
-                    }
-                    
-                    // بدء العد التنازلي تلقائياً
-                    startCountdown();
-                    </script>';
-                } else {
-                    echo "<p style='color:blue'>✅ اكتملت معالجة جميع الأحداث!</p>";
-                }
-            } else {
-                echo "<p style='color:blue'>لا توجد أحداث متبقية للمعالجة!</p>";
-            }
+            echo '<div style="background:#fff; padding:20px; border-radius:8px; margin:20px 0;">';
+            echo '<div style="display:flex; justify-content:space-between; margin-bottom:10px;">';
+            echo '<span id="bt-progress-text" style="font-weight:bold;">جاري التحضير...</span>';
+            echo '<span id="bt-percent-text" style="color:#1976d2; font-weight:bold;">0%</span>';
             echo '</div>';
+            echo '<div style="background:#e0e0e0; border-radius:4px; height:30px; overflow:hidden;">';
+            echo '<div id="bt-progress-bar" style="background:linear-gradient(90deg, #1976d2, #42a5f5); width:0%; height:100%; transition:width 0.3s ease;"></div>';
+            echo '</div>';
+            echo '<div style="margin-top:15px; display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">';
+            echo '<div style="background:#e8f5e9; padding:15px; border-radius:8px; text-align:center;">';
+            echo '<div id="bt-processed-count" style="font-size:24px; font-weight:bold; color:#2e7d32;">0</div>';
+            echo '<div style="color:#666; font-size:14px;">تمت المعالجة</div>';
+            echo '</div>';
+            echo '<div style="background:#ffebee; padding:15px; border-radius:8px; text-align:center;">';
+            echo '<div id="bt-errors-count" style="font-size:24px; font-weight:bold; color:#c62828;">0</div>';
+            echo '<div style="color:#666; font-size:14px;">أخطاء</div>';
+            echo '</div>';
+            echo '<div style="background:#fff3e0; padding:15px; border-radius:8px; text-align:center;">';
+            echo '<div id="bt-remaining-count" style="font-size:24px; font-weight:bold; color:#ef6c00;">0</div>';
+            echo '<div style="color:#666; font-size:14px;">متبقي</div>';
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
+
+            echo '<div id="bt-log-container" style="background:#263238; color:#aed581; padding:15px; border-radius:8px; max-height:300px; overflow-y:auto; font-family:monospace; font-size:12px; margin-top:20px;">';
+            echo '<div>⏳ جاري تهيئة النظام...</div>';
+            echo '</div>';
+
+            echo '<div style="margin-top:20px; text-align:center;">';
+            echo '<button type="button" id="bt-start-process" class="button button-primary button-large" onclick="btStartContinuousProcess()">🚀 بدء المعالجة المستمرة</button>';
+            echo '<button type="button" id="bt-stop-process" class="button button-large" onclick="btStopProcess()" style="display:none; background:#c62828; color:#fff;">⏹ إيقاف</button>';
+            echo '</div>';
+
+            $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+            $pending_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
+            
+            echo '<script>
+            var btConfig = {
+                totalEvents: ' . $total_events . ',
+                pendingEvents: ' . $pending_events . ',
+                batchSize: ' . $limit . ',
+                nonce: "' . wp_create_nonce('bt_reindex_ajax') . '",
+                ajaxUrl: "' . admin_url('admin-ajax.php') . '"
+            };
+            
+            var btState = {
+                processed: 0,
+                errors: 0,
+                remaining: ' . $pending_events . ',
+                isRunning: false,
+                currentBatch: 0
+            };
+
+            function btLog(message, type="info") {
+                var logContainer = document.getElementById("bt-log-container");
+                var timestamp = new Date().toLocaleTimeString("ar-LB");
+                var colors = {info: "#aed581", success: "#81c784", error: "#e57373", warning: "#ffb74d"};
+                var logEntry = document.createElement("div");
+                logEntry.style.color = colors[type] || colors.info;
+                logEntry.innerHTML = "[" + timestamp + "] " + message;
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            function btUpdateProgress() {
+                var total = btConfig.totalEvents;
+                var pendingInitial = btConfig.pendingEvents;
+                var processed = btState.processed;
+                var percent = pendingInitial > 0 ? Math.round((processed / pendingInitial) * 100) : 100;
+                
+                document.getElementById("bt-progress-bar").style.width = percent + "%";
+                document.getElementById("bt-percent-text").textContent = percent + "%";
+                document.getElementById("bt-processed-count").textContent = processed.toLocaleString();
+                document.getElementById("bt-errors-count").textContent = btState.errors.toLocaleString();
+                document.getElementById("bt-remaining-count").textContent = btState.remaining.toLocaleString();
+                document.getElementById("bt-progress-text").textContent = "معالجة الدفعة #" + (btState.currentBatch + 1);
+            }
+
+            async function btProcessBatch() {
+                if (!btState.isRunning) return;
+
+                try {
+                    btLog("جاري طلب الدفعة #" + (btState.currentBatch + 1), "info");
+                    
+                    var formData = new FormData();
+                    formData.append("action", "bt_reindex_batch");
+                    formData.append("nonce", btConfig.nonce);
+                    formData.append("batch_size", btConfig.batchSize);
+                    formData.append("offset", btState.processed);
+
+                    var response = await fetch(btConfig.ajaxUrl, {
+                        method: "POST",
+                        body: formData,
+                        credentials: "same-origin"
+                    });
+
+                    var result = await response.json();
+
+                    if (result.success) {
+                        var data = result.data;
+                        btState.processed += data.processed || 0;
+                        btState.errors += data.errors || 0;
+                        btState.remaining = data.remaining || 0;
+                        btState.currentBatch++;
+
+                        btLog("✅ تمت معالجة " + data.processed + " حدث بنجاح (" + data.errors + " أخطاء)", "success");
+                        btUpdateProgress();
+
+                        if (btState.remaining > 0 && btState.isRunning) {
+                            btLog("⏳ انتظار 2 ثانية قبل الدفعة التالية...", "info");
+                            setTimeout(btProcessBatch, 2000);
+                        } else if (btState.remaining === 0) {
+                            btComplete();
+                        }
+                    } else {
+                        btLog("❌ خطأ: " + (result.data || "خطأ غير معروف"), "error");
+                        btState.errors++;
+                        btUpdateProgress();
+                        if (btState.isRunning) setTimeout(btProcessBatch, 3000);
+                    }
+                } catch (error) {
+                    btLog("❌ خطأ في الاتصال: " + error.message, "error");
+                    btState.errors++;
+                    btUpdateProgress();
+                    if (btState.isRunning) setTimeout(btProcessBatch, 3000);
+                }
+            }
+
+            function btStartContinuousProcess() {
+                if (btState.isRunning) return;
+                
+                btState.isRunning = true;
+                btState.currentBatch = 0;
+                
+                document.getElementById("bt-start-process").style.display = "none";
+                document.getElementById("bt-stop-process").style.display = "inline-block";
+                
+                btLog("🚀 بدء المعالجة المستمرة لـ " + btConfig.pendingEvents + " حدث", "info");
+                btUpdateProgress();
+                btProcessBatch();
+            }
+
+            function btStopProcess() {
+                btState.isRunning = false;
+                document.getElementById("bt-start-process").style.display = "inline-block";
+                document.getElementById("bt-stop-process").style.display = "none";
+                btLog("⏹ تم إيقاف المعالجة بواسطة المستخدم", "warning");
+            }
+
+            function btComplete() {
+                btState.isRunning = false;
+                document.getElementById("bt-start-process").style.display = "inline-block";
+                document.getElementById("bt-stop-process").style.display = "none";
+                document.getElementById("bt-progress-text").textContent = "✅ اكتملت المعالجة!";
+                btLog("🎉 اكتملت معالجة جميع الأحداث بنجاح!", "success");
+                alert("✅ اكتملت معالجة جميع الأحداث بنجاح!");
+            }
+
+            // بدء تلقائي بعد 3 ثواني
+            setTimeout(btStartContinuousProcess, 3000);
+            </script>';
         } else {
             $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
             $pending = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
@@ -16333,6 +16397,79 @@ add_action('wp_ajax_sod_newslog_get_banks', 'sod_ajax_newslog_get_banks');
 add_action('wp_ajax_sod_newslog_add_to_bank', 'sod_ajax_newslog_add_to_bank');
 add_action('wp_ajax_sod_newslog_remove_from_bank', 'sod_ajax_newslog_remove_from_bank');
 add_action('wp_ajax_sod_newslog_autotrain', 'sod_ajax_newslog_autotrain');
+
+// ============================================
+// AJAX Handler لإعادة الأرشفة المستمرة
+// ============================================
+add_action('wp_ajax_bt_reindex_batch', 'sod_ajax_bt_reindex_batch');
+
+/**
+ * معالج AJAX لمعالجة دفعات الأرشفة
+ */
+function sod_ajax_bt_reindex_batch() {
+    check_ajax_referer('bt_reindex_ajax', 'nonce');
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('غير مصرح');
+        return;
+    }
+    
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'osint_events';
+    
+    $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 100;
+    $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+    
+    if ($batch_size < 1) $batch_size = 100;
+    if ($batch_size > 500) $batch_size = 500;
+    
+    $processed = 0;
+    $errors = 0;
+    
+    $events = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, title, war_data, actor_v2, region FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL ORDER BY id DESC LIMIT %d OFFSET %d",
+        $batch_size,
+        $offset
+    ));
+    
+    if (!empty($events)) {
+        foreach ($events as $event) {
+            try {
+                $event_data = [
+                    'id' => $event->id,
+                    'title' => $event->title,
+                    'war_data' => $event->war_data,
+                    'actor_v2' => $event->actor_v2,
+                    'region' => $event->region,
+                ];
+
+                if (function_exists('sod_enhance_event_with_hybrid_analysis')) {
+                    $enhanced_data = sod_enhance_event_with_hybrid_analysis($event_data);
+                    if (is_array($enhanced_data) && !empty($enhanced_data)) {
+                        unset($enhanced_data['id']);
+                        $wpdb->update($table_name, $enhanced_data, ['id' => $event->id]);
+                        $processed++;
+                    } else {
+                        $errors++;
+                    }
+                } else {
+                    $errors++;
+                }
+            } catch (Throwable $e) {
+                $errors++;
+                error_log('Reindex Batch Error: ' . $e->getMessage());
+            }
+        }
+    }
+    
+    $remaining = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
+    
+    wp_send_json_success([
+        'processed' => $processed,
+        'errors' => $errors,
+        'remaining' => $remaining,
+    ]);
+}
 
 
 

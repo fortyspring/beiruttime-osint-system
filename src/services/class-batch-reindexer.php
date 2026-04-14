@@ -20,7 +20,7 @@ class Batch_Reindexer {
     /**
      * اسم الجدول
      */
-    private $table_name;
+    public $table_name;
     
     /**
      * سجل العمليات

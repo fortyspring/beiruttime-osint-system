@@ -37,6 +37,7 @@ require_once $sod_inc_base . '/class-entity-relations-manager.php';
 require_once __DIR__ . '/src/services/class-hybrid-warfare.php';
 require_once __DIR__ . '/src/services/class-verification.php';
 require_once __DIR__ . '/src/services/class-early-warning.php';
+require_once __DIR__ . '/src/services/class-batch-reindexer.php';
 
 
 if (!function_exists('sod_has_arabic_chars')) {
@@ -16416,8 +16417,10 @@ function sod_ajax_bt_reindex_batch() {
         return;
     }
     
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'so_news_events';
+    // استخدام الكلاس الحديث Batch_Reindexer
+    if (!class_exists('Beiruttime\\OSINT\\Services\\Batch_Reindexer')) {
+        require_once __DIR__ . '/src/services/class-batch-reindexer.php';
+    }
     
     $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 100;
     $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
@@ -16425,52 +16428,20 @@ function sod_ajax_bt_reindex_batch() {
     if ($batch_size < 1) $batch_size = 100;
     if ($batch_size > 500) $batch_size = 500;
     
-    $processed = 0;
-    $errors = 0;
-    
-    $events = $wpdb->get_results($wpdb->prepare(
-        "SELECT id, title, war_data, actor_v2, region FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL ORDER BY id DESC LIMIT %d OFFSET %d",
-        $batch_size,
-        $offset
-    ));
-    
-    if (!empty($events)) {
-        foreach ($events as $event) {
-            try {
-                $event_data = [
-                    'id' => $event->id,
-                    'title' => $event->title,
-                    'war_data' => $event->war_data,
-                    'actor_v2' => $event->actor_v2,
-                    'region' => $event->region,
-                ];
-
-                if (function_exists('sod_enhance_event_with_hybrid_analysis')) {
-                    $enhanced_data = sod_enhance_event_with_hybrid_analysis($event_data);
-                    if (is_array($enhanced_data) && !empty($enhanced_data)) {
-                        unset($enhanced_data['id']);
-                        $wpdb->update($table_name, $enhanced_data, ['id' => $event->id]);
-                        $processed++;
-                    } else {
-                        $errors++;
-                    }
-                } else {
-                    $errors++;
-                }
-            } catch (Throwable $e) {
-                $errors++;
-                error_log('Reindex Batch Error: ' . $e->getMessage());
-            }
-        }
+    try {
+        $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
+        $result = $reindexer->run_batch($batch_size, $offset, false);
+        
+        wp_send_json_success([
+            'processed' => $result['stats']['updated'] ?? 0,
+            'errors' => $result['stats']['errors'] ?? 0,
+            'remaining' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE hybrid_layers IS NULL OR hybrid_layers = '' OR threat_score = 0"),
+            'message' => $result['message'] ?? ''
+        ]);
+    } catch (\Throwable $e) {
+        error_log('Batch Reindexer AJAX Error: ' . $e->getMessage());
+        wp_send_json_error($e->getMessage());
     }
-    
-    $remaining = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
-    
-    wp_send_json_success([
-        'processed' => $processed,
-        'errors' => $errors,
-        'remaining' => $remaining,
-    ]);
 }
 
 

@@ -80,6 +80,9 @@ class Batch_Reindexer {
         }
         
         $hybrid_engine = \Beiruttime\OSINT\Services\HybridWarfareEngine::instance();
+        
+        // تحديد ما إذا كان يجب استخدام المحرك القديم (افتراضي: استخدام المحرك الجديد)
+        $use_legacy = false;
 
         foreach ($events as $event) {
             try {

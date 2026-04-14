@@ -16417,7 +16417,7 @@ function sod_ajax_bt_reindex_batch() {
     }
     
     global $wpdb;
-    $table_name = $wpdb->prefix . 'osint_events';
+    $table_name = $wpdb->prefix . 'so_news_events';
     
     $batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 100;
     $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;

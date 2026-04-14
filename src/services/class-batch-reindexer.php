@@ -91,6 +91,7 @@ class Batch_Reindexer {
                 // تحضير البيانات للتحليل
                 $event_data = [
                     'title' => $event['title'],
+                    'description' => $event['war_data'] ?? '',
                     'war_data' => $event['war_data'],
                     'actor_v2' => $event['actor_v2'],
                     'region' => $event['region'],
@@ -99,12 +100,20 @@ class Batch_Reindexer {
 
                 if (!$use_legacy && $hybrid_engine) {
                     // 1. تحليل طبقات الحرب المركبة باستخدام المحرك الجديد
-                    $hybrid_analysis = $hybrid_engine->analyzeLayers($event_data);
-                    
-                    // تحويل النتيجة إلى صيغة قاعدة البيانات
-                    $layers_json = !empty($hybrid_analysis['layers']) ? json_encode($hybrid_analysis['layers'], JSON_UNESCAPED_UNICODE) : '';
-                    $primary_layer = $hybrid_analysis['primary_layer'] ?? '';
-                    $multi_domain = round($hybrid_analysis['composite_score'] ?? 0, 3);
+                    try {
+                        $hybrid_analysis = $hybrid_engine->analyzeLayers($event_data);
+                        
+                        // تحويل النتيجة إلى صيغة قاعدة البيانات
+                        $layers_json = !empty($hybrid_analysis['layers']) ? json_encode($hybrid_analysis['layers'], JSON_UNESCAPED_UNICODE) : '';
+                        $primary_layer = $hybrid_analysis['primary_layer'] ?? '';
+                        $multi_domain = round($hybrid_analysis['composite_score'] ?? 0, 3);
+                    } catch (\Exception $engine_error) {
+                        error_log("Beiruttime OSINT Hybrid Engine Error [Event ID: {$event['id']}]: " . $engine_error->getMessage());
+                        // السقوط إلى المحرك القديم في حالة الخطأ
+                        $layers_json = $this->legacy_classify_hybrid_layers($event_data);
+                        $primary_layer = $this->legacy_get_primary_layer($layers_json);
+                        $multi_domain = $this->legacy_calculate_multi_domain($layers_json);
+                    }
                 } else {
                     // استخدام الدوال القديمة كبديل
                     $layers_json = $this->legacy_classify_hybrid_layers($event_data);

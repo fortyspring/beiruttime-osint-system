@@ -1,1 +1,3 @@
-Nothing should be ignored based on the provided file changes. The only modified file is a PHP source file (`src/services/class-batch-reindexer.php`), which should not be ignored. No build artifacts, dependencies, or temporary files are present in the changes.
+(beiruttime-osint-pro.php and src/services/class-batch-reindexer.php are PHP source files, which shouldn't be ignored)
+
+(empty — output nothing)

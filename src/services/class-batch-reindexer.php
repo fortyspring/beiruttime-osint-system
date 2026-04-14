@@ -59,7 +59,7 @@ class Batch_Reindexer {
         // جلب الأحداث التي لم تُحلل بعد أو تحتاج تحديث
         $events = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id, title, war_data, actor_v2, region, score, osint_type, hybrid_layers 
+                "SELECT id, title, content, war_data, actor_v2, region, score, osint_type, hybrid_layers 
                  FROM {$this->table_name} 
                  WHERE (hybrid_layers IS NULL OR hybrid_layers = '' OR threat_score = 0)
                  ORDER BY event_timestamp DESC 
@@ -89,10 +89,35 @@ class Batch_Reindexer {
                 $this->stats['processed']++;
                 
                 // تحضير البيانات للتحليل
+                // war_data قد يكون JSON أو نص عادي، نحتاج لاستخراج الوصف منه
+                $war_data_raw = $event['war_data'] ?? '';
+                $description = '';
+                
+                // إذا كان war_data يحتوي على JSON، نحاول استخراج المحتوى
+                if (!empty($war_data_raw) && is_string($war_data_raw)) {
+                    $decoded = json_decode($war_data_raw, true);
+                    if (is_array($decoded)) {
+                        // محاولة استخراج الوصف من الحقول المختلفة
+                        $description = $decoded['content'] ?? $decoded['description'] ?? $decoded['text'] ?? '';
+                        // إذا لم نجد وصفاً، نستخدم النص الكامل
+                        if (empty($description)) {
+                            $description = function_exists('so_clean_text') ? so_clean_text($war_data_raw) : wp_strip_all_tags($war_data_raw);
+                        }
+                    } else {
+                        // ليس JSON، نستخدمه كنص عادي
+                        $description = function_exists('so_clean_text') ? so_clean_text($war_data_raw) : wp_strip_all_tags($war_data_raw);
+                    }
+                }
+                
+                // إذا لم نجد وصفاً، نستخدم حقل content من قاعدة البيانات
+                if (empty($description) && !empty($event['content'])) {
+                    $description = function_exists('so_clean_text') ? so_clean_text($event['content']) : wp_strip_all_tags($event['content']);
+                }
+                
                 $event_data = [
                     'title' => $event['title'],
-                    'description' => $event['war_data'] ?? '',
-                    'war_data' => $event['war_data'],
+                    'description' => $description,
+                    'war_data' => $war_data_raw,
                     'actor_v2' => $event['actor_v2'],
                     'region' => $event['region'],
                     'score' => $event['score']
@@ -239,7 +264,8 @@ class Batch_Reindexer {
      * دالة مساعدة لتصنيف الطبقات بالطريقة القديمة
      */
     private function legacy_classify_hybrid_layers($event_data) {
-        $text = ($event_data['title'] ?? '') . ' ' . ($event_data['war_data'] ?? '');
+        // استخدام description بدلاً من war_data لتحسين التحليل
+        $text = ($event_data['title'] ?? '') . ' ' . ($event_data['description'] ?? $event_data['war_data'] ?? '');
         $layers = [];
         
         $keywords_map = [
@@ -320,6 +346,7 @@ class Batch_Reindexer {
      */
     private function extract_actor_network($event_data) {
         $title = $event_data['title'] ?? '';
+        $description = $event_data['description'] ?? '';
         $war_data = $event_data['war_data'] ?? '';
         $actor_v2 = $event_data['actor_v2'] ?? '';
         
@@ -331,7 +358,8 @@ class Batch_Reindexer {
             ];
         }
         
-        $text = $title . ' ' . $war_data;
+        // استخدام description أولاً ثم war_data
+        $text = $title . ' ' . ($description ?: $war_data);
         
         // قوائم الفاعلين المحتملين
         $actors_map = [

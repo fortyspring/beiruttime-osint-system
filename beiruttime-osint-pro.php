@@ -6663,12 +6663,27 @@ function sod_available_dashboard_panels(): array {
             'shortcode' => '[osint_command_center]',
             'desc' => 'اللوحة الاحترافية + الخريطة معاً',
         ],
+        'osint_dashboard_panel' => [
+            'label' => 'Hybrid Warfare Dashboard',
+            'shortcode' => '[osint_dashboard_panel]',
+            'desc' => 'لوحة الحرب المركبة مع رادار التهديدات ومؤشر العلاقات',
+        ],
+        'hybrid_warfare_radar' => [
+            'label' => 'Hybrid Warfare Radar',
+            'shortcode' => '[hybrid_warfare_radar]',
+            'desc' => 'رادار تفاعلي للتهديدات المركبة',
+        ],
+        'actor_network_map' => [
+            'label' => 'Actor Network Map',
+            'shortcode' => '[actor_network_map]',
+            'desc' => 'شبكة العلاقات بين الدول والجماعات والوكلاء',
+        ],
     ];
 }
 
 function sod_dashboard_selected_panels(): array {
     $available = sod_available_dashboard_panels();
-    $allowed = ['powerbi','ticker','threat_analyzer','command_deck','osint_dashboard','osint_map','osint_command_center'];
+    $allowed = ['powerbi','ticker','threat_analyzer','command_deck','osint_dashboard','osint_map','osint_command_center','osint_dashboard_panel','hybrid_warfare_radar','actor_network_map'];
     $selected = get_option('sod_dashboard_selected_panels', ['powerbi','ticker','threat_analyzer']);
     if (!is_array($selected)) $selected = ['powerbi','ticker','threat_analyzer'];
     $selected = array_values(array_filter(array_map('sanitize_key', $selected), function($key) use ($available){
@@ -16247,6 +16262,174 @@ add_action('init', 'sod_prune_legacy_dashboard_shortcodes', 999);
 
 
 // ==========================================================================
+//  دوال مساعدة لتحليل الحرب المركبة (Hybrid Warfare Analysis)
+// ==========================================================================
+
+if (!function_exists('sod_enhance_event_with_hybrid_analysis')) {
+/**
+ * تعزيز حدث ببيانات تحليل الحرب المركبة
+ * 
+ * @param array $event_data بيانات الحدث
+ * @return array|null البيانات المعززة أو null عند الفشل
+ */
+function sod_enhance_event_with_hybrid_analysis($event_data) {
+    if (empty($event_data) || empty($event_data['id'])) {
+        return null;
+    }
+
+    $title = $event_data['title'] ?? '';
+    $actor = $event_data['actor_v2'] ?? '';
+    $region = $event_data['region'] ?? '';
+    $existing_war_data = !empty($event_data['war_data']) && is_string($event_data['war_data']) 
+        ? json_decode($event_data['war_data'], true) 
+        : [];
+    
+    if (!is_array($existing_war_data)) {
+        $existing_war_data = [];
+    }
+
+    // تحليل نوع التهديد
+    $threat_types = [];
+    $threat_score = 0;
+    
+    // كلمات مفتاحية لأنواع الحرب المركبة
+    $keywords = [
+        'سيبراني' => ['score' => 70, 'type' => 'cyber'],
+        'إلكتروني' => ['score' => 65, 'type' => 'electronic'],
+        'نفسي' => ['score' => 50, 'type' => 'psychological'],
+        'إعلامي' => ['score' => 40, 'type' => 'media'],
+        'اقتصادي' => ['score' => 60, 'type' => 'economic'],
+        'وكيل' => ['score' => 75, 'type' => 'proxy'],
+        'ميليشيا' => ['score' => 80, 'type' => 'militia'],
+        'طائرة مسيرة' => ['score' => 85, 'type' => 'drone'],
+        'صاروخ' => ['score' => 90, 'type' => 'missile'],
+        'اغتيال' => ['score' => 95, 'type' => 'assassination'],
+        'تخريب' => ['score' => 70, 'type' => 'sabotage'],
+        'تجسس' => ['score' => 65, 'type' => 'espionage'],
+    ];
+
+    foreach ($keywords as $keyword => $data) {
+        if (stripos($title, $keyword) !== false || stripos($actor, $keyword) !== false) {
+            $threat_types[] = $data['type'];
+            $threat_score = max($threat_score, $data['score']);
+        }
+    }
+
+    // تحليل الجهة الفاعلة
+    $actor_analysis = sod_analyze_actor_v2($actor, $title);
+    
+    // حساب درجة التهديد النهائية
+    if (!empty($threat_types)) {
+        $threat_score = min(100, $threat_score + count($threat_types) * 5);
+    }
+
+    // بناء بيانات الحرب المركبة
+    $war_data = [
+        'contextual_war_engine' => [
+            'war_direction' => $threat_score > 70 ? 'escalation' : ($threat_score > 40 ? 'tension' : 'stable_or_unclear'),
+            'threat_level' => $threat_score > 80 ? 'critical' : ($threat_score > 60 ? 'high' : ($threat_score > 40 ? 'medium' : 'low')),
+            'threat_types' => array_unique($threat_types),
+            'primary_threat' => !empty($threat_types) ? reset($threat_types) : 'unknown',
+        ],
+        'actor_analysis' => $actor_analysis,
+        'regional_impact' => sod_analyze_regional_impact($region, $threat_score),
+        'evaluation_mode' => 'auto',
+        'evaluation_label' => 'آلي',
+        'hybrid_score' => $threat_score,
+    ];
+
+    // دمج مع البيانات الموجودة
+    $merged_war_data = array_merge($existing_war_data, $war_data);
+
+    return [
+        'war_data' => wp_json_encode($merged_war_data, JSON_UNESCAPED_UNICODE),
+        'threat_score' => $threat_score,
+        'actor_v2' => $actor_analysis['actor_name'] ?? $actor,
+    ];
+}
+}
+
+if (!function_exists('sod_analyze_actor_v2')) {
+/**
+ * تحليل الجهة الفاعلة
+ */
+function sod_analyze_actor_v2($actor, $context = '') {
+    $actor = trim($actor);
+    
+    $actor_categories = [
+        'إسرائيلي' => ['category' => 'enemy', 'threat_base' => 80],
+        'عدو' => ['category' => 'enemy', 'threat_base' => 80],
+        'مقاومة' => ['category' => 'resistance', 'threat_base' => 60],
+        'حزب الله' => ['category' => 'resistance', 'threat_base' => 70],
+        'سوري' => ['category' => 'regional', 'threat_base' => 50],
+        'إيراني' => ['category' => 'regional', 'threat_base' => 65],
+        'أمريكي' => ['category' => 'international', 'threat_base' => 75],
+        'دولي' => ['category' => 'international', 'threat_base' => 60],
+        'وكيل' => ['category' => 'proxy', 'threat_base' => 70],
+        'ميليشيا' => ['category' => 'militia', 'threat_base' => 65],
+    ];
+
+    $detected_category = 'unknown';
+    $threat_base = 50;
+
+    foreach ($actor_categories as $keyword => $data) {
+        if (stripos($actor, $keyword) !== false || stripos($context, $keyword) !== false) {
+            $detected_category = $data['category'];
+            $threat_base = $data['threat_base'];
+            break;
+        }
+    }
+
+    return [
+        'actor_name' => $actor,
+        'actor_category' => $detected_category,
+        'threat_base' => $threat_base,
+        'is_state_actor' => in_array($detected_category, ['enemy', 'regional', 'international']),
+        'is_proxy' => $detected_category === 'proxy' || $detected_category === 'militia',
+    ];
+}
+}
+
+if (!function_exists('sod_analyze_regional_impact')) {
+/**
+ * تحليل التأثير الإقليمي
+ */
+function sod_analyze_regional_impact($region, $threat_score) {
+    $high_impact_regions = ['لبنان', 'فلسطين', 'سوريا', 'إسرائيل', 'غزة', 'الضفة'];
+    $medium_impact_regions = ['العراق', 'اليمن', 'الأردن', 'مصر'];
+    
+    $impact_level = 'low';
+    $impact_score = 20;
+
+    foreach ($high_impact_regions as $r) {
+        if (stripos($region, $r) !== false) {
+            $impact_level = 'high';
+            $impact_score = 80;
+            break;
+        }
+    }
+
+    if ($impact_level === 'low') {
+        foreach ($medium_impact_regions as $r) {
+            if (stripos($region, $r) !== false) {
+                $impact_level = 'medium';
+                $impact_score = 50;
+                break;
+            }
+        }
+    }
+
+    return [
+        'region_name' => $region,
+        'impact_level' => $impact_level,
+        'impact_score' => $impact_score,
+        'is_conflict_zone' => $impact_level === 'high',
+    ];
+}
+}
+
+
+// ==========================================================================
 //  AI Predictive + Early Warning + Instant Alerts
 // ==========================================================================
 
@@ -16985,7 +17168,7 @@ function so_real_executive_report($events) {
 add_shortcode('osint_exec_report', function(){
     global $wpdb;
     $rows = $wpdb->get_results("
-        SELECT title, actor_v2, region, intel_type, score, event_timestamp
+        SELECT title, actor_v2, region, intel_type, score, event_timestamp, war_data, threat_score
         FROM {$wpdb->prefix}so_news_events
         ORDER BY event_timestamp DESC
         LIMIT 500
@@ -17000,10 +17183,16 @@ add_shortcode('osint_exec_report', function(){
             'type' => (string)($row['intel_type'] ?? 'عام'),
             'score' => (int)($row['score'] ?? 0),
             'time' => (int)($row['event_timestamp'] ?? time()),
+            'war_data' => $row['war_data'] ?? '{}',
+            'threat_score' => (int)($row['threat_score'] ?? 0),
         ];
     }
 
     $report = so_real_executive_report($events);
+    
+    // حساب إحصائيات الحرب المركبة
+    $hybrid_stats = sod_calculate_hybrid_warfare_stats($events);
+    
     ob_start(); ?>
     <div style="background:#111827;color:#fff;padding:20px;border-radius:12px">
         <h2>🧭 التقرير التنفيذي الذكي</h2>
@@ -17012,9 +17201,173 @@ add_shortcode('osint_exec_report', function(){
         <p>النمط الغالب: <strong><?php echo esc_html($report['dominant_type']); ?></strong></p>
         <p>عدد النشاطات: <strong><?php echo esc_html($report['activity']); ?></strong></p>
         <p>مجموع النقاط: <strong><?php echo esc_html($report['score']); ?></strong></p>
+        
+        <?php if (!empty($hybrid_stats)) : ?>
+        <hr style="border-color:#374151;margin:20px 0;">
+        <h3>⚔️ مؤشرات الحرب التركيبية</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-top:15px;">
+            <div style="background:#1f2937;padding:15px;border-radius:8px;">
+                <div style="color:#9ca3af;font-size:14px;">أعلى تهديد مركب</div>
+                <div style="font-size:24px;font-weight:bold;color:#ef4444;"><?php echo esc_html($hybrid_stats['max_threat_score'] ?? 0); ?>/100</div>
+            </div>
+            <div style="background:#1f2937;padding:15px;border-radius:8px;">
+                <div style="color:#9ca3af;font-size:14px;">نوع التهديد الرئيسي</div>
+                <div style="font-size:18px;font-weight:bold;color:#f59e0b;"><?php echo esc_html(sod_translate_threat_type($hybrid_stats['primary_threat'] ?? 'unknown')); ?></div>
+            </div>
+            <div style="background:#1f2937;padding:15px;border-radius:8px;">
+                <div style="color:#9ca3af;font-size:14px;">الجهات الفاعلة</div>
+                <div style="font-size:18px;font-weight:bold;color:#3b82f6;"><?php echo esc_html($hybrid_stats['unique_actors'] ?? 0); ?></div>
+            </div>
+            <div style="background:#1f2937;padding:15px;border-radius:8px;">
+                <div style="color:#9ca3af;font-size:14px;">المناطق الساخنة</div>
+                <div style="font-size:18px;font-weight:bold;color:#10b981;"><?php echo esc_html($hybrid_stats['hot_regions'] ?? 0); ?></div>
+            </div>
+        </div>
+        
+        <?php if (!empty($hybrid_stats['threat_types'])) : ?>
+        <div style="margin-top:20px;">
+            <div style="color:#9ca3af;font-size:14px;margin-bottom:10px;">توزيع أنواع التهديدات:</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                <?php foreach ($hybrid_stats['threat_types'] as $type => $count) : ?>
+                <span style="background:#374151;padding:5px 12px;border-radius:20px;font-size:13px;">
+                    <?php echo esc_html(sod_translate_threat_type($type)); ?> (<?php echo esc_html($count); ?>)
+                </span>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (!empty($hybrid_stats['actor_network'])) : ?>
+        <div style="margin-top:20px;">
+            <div style="color:#9ca3af;font-size:14px;margin-bottom:10px;">شبكة الجهات الفاعلة:</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <?php foreach (array_slice($hybrid_stats['actor_network'], 0, 10) as $actor => $data) : ?>
+                <span style="background:<?php echo esc_attr($data['category_color'] ?? '#374151'); ?>;padding:5px 12px;border-radius:20px;font-size:12px;color:#fff;">
+                    <?php echo esc_html($actor); ?> (<?php echo esc_html($data['count']); ?>)
+                </span>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <?php endif; ?>
     </div>
     <?php return ob_get_clean();
 });
+
+/**
+ * حساب إحصائيات الحرب المركبة
+ */
+function sod_calculate_hybrid_warfare_stats($events) {
+    if (empty($events)) return [];
+    
+    $max_threat_score = 0;
+    $threat_types = [];
+    $actors = [];
+    $regions = [];
+    $hot_regions = 0;
+    
+    foreach ($events as $event) {
+        $threat_score = (int)($event['threat_score'] ?? 0);
+        $max_threat_score = max($max_threat_score, $threat_score);
+        
+        // تحليل war_data
+        $war_data = !empty($event['war_data']) && is_string($event['war_data']) 
+            ? json_decode($event['war_data'], true) 
+            : [];
+        
+        if (is_array($war_data) && isset($war_data['contextual_war_engine'])) {
+            $engine = $war_data['contextual_war_engine'];
+            if (!empty($engine['threat_types'])) {
+                foreach ($engine['threat_types'] as $type) {
+                    if (!isset($threat_types[$type])) $threat_types[$type] = 0;
+                    $threat_types[$type]++;
+                }
+            }
+        }
+        
+        // تجميع الجهات
+        $actor = trim($event['actor'] ?? '');
+        if (!empty($actor)) {
+            if (!isset($actors[$actor])) {
+                $actors[$actor] = ['count' => 0, 'category' => 'unknown', 'category_color' => '#6b7280'];
+            }
+            $actors[$actor]['count']++;
+            
+            // تحليل الجهة
+            $analysis = sod_analyze_actor_v2($actor);
+            $actors[$actor]['category'] = $analysis['actor_category'];
+            
+            // ألوان حسب الفئة
+            $colors = [
+                'enemy' => '#ef4444',
+                'resistance' => '#10b981',
+                'regional' => '#f59e0b',
+                'international' => '#3b82f6',
+                'proxy' => '#8b5cf6',
+                'militia' => '#ec4899',
+            ];
+            $actors[$actor]['category_color'] = $colors[$analysis['actor_category']] ?? '#6b7280';
+        }
+        
+        // تجميع المناطق
+        $region = trim($event['region'] ?? '');
+        if (!empty($region)) {
+            if (!isset($regions[$region])) {
+                $regions[$region] = ['count' => 0, 'is_hot' => false];
+            }
+            $regions[$region]['count']++;
+            if ($threat_score > 60) {
+                $regions[$region]['is_hot'] = true;
+            }
+        }
+    }
+    
+    // حساب المناطق الساخنة
+    foreach ($regions as $region) {
+        if ($region['is_hot']) $hot_regions++;
+    }
+    
+    // تحديد نوع التهديد الرئيسي
+    $primary_threat = 'unknown';
+    if (!empty($threat_types)) {
+        arsort($threat_types);
+        $primary_threat = key($threat_types);
+    }
+    
+    return [
+        'max_threat_score' => $max_threat_score,
+        'primary_threat' => $primary_threat,
+        'threat_types' => $threat_types,
+        'unique_actors' => count($actors),
+        'actor_network' => $actors,
+        'hot_regions' => $hot_regions,
+        'total_regions' => count($regions),
+    ];
+}
+
+/**
+ * ترجمة نوع التهديد إلى العربية
+ */
+function sod_translate_threat_type($type) {
+    $translations = [
+        'cyber' => 'سيبراني',
+        'electronic' => 'إلكتروني',
+        'psychological' => 'نفسي',
+        'media' => 'إعلامي',
+        'economic' => 'اقتصادي',
+        'proxy' => 'وكيل',
+        'militia' => 'ميليشيا',
+        'drone' => 'طائرة مسيرة',
+        'missile' => 'صاروخي',
+        'assassination' => 'اغتيال',
+        'sabotage' => 'تخريب',
+        'espionage' => 'تجسس',
+        'unknown' => 'غير محدد',
+    ];
+    
+    return $translations[$type] ?? $type;
+}
 
 
 

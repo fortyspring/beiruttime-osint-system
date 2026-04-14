@@ -16430,6 +16430,12 @@ function sod_ajax_bt_reindex_batch() {
     
     try {
         global $wpdb;
+        
+        // تحميل دالة so_clean_text إذا لم تكن موجودة
+        if (!function_exists('so_clean_text')) {
+            require_once __DIR__ . '/beiruttime-osint-pro.php';
+        }
+        
         $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
         $result = $reindexer->run_batch($batch_size, $offset, false);
         

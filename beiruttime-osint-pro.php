@@ -16429,13 +16429,19 @@ function sod_ajax_bt_reindex_batch() {
     if ($batch_size > 500) $batch_size = 500;
     
     try {
+        global $wpdb;
         $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
         $result = $reindexer->run_batch($batch_size, $offset, false);
+        
+        $remaining = 0;
+        if (isset($reindexer->table_name)) {
+            $remaining = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE hybrid_layers IS NULL OR hybrid_layers = '' OR threat_score = 0");
+        }
         
         wp_send_json_success([
             'processed' => $result['stats']['updated'] ?? 0,
             'errors' => $result['stats']['errors'] ?? 0,
-            'remaining' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE hybrid_layers IS NULL OR hybrid_layers = '' OR threat_score = 0"),
+            'remaining' => $remaining,
             'message' => $result['message'] ?? ''
         ]);
     } catch (\Throwable $e) {

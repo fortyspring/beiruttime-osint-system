@@ -56,12 +56,12 @@ class Batch_Reindexer {
         
         $this->stats['start_time'] = microtime(true);
         
-        // جلب الأحداث التي لم تُحلل بعد أو تحتاج تحديث
+        // جلب الأحداث التي لم تُحلل بعد أو تحتاج تحديث - نستخدم offset حقيقي بغض النظر عن حالة threat_score
+        // لأن الـ offset يأتي من الجافاسكريبت ويعبر عن عدد الأحداث المعالجة فعلياً
         $events = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT id, title, content, war_data, actor_v2, region, score, osint_type, hybrid_layers 
                  FROM {$this->table_name} 
-                 WHERE (hybrid_layers IS NULL OR hybrid_layers = '' OR threat_score = 0)
                  ORDER BY event_timestamp DESC 
                  LIMIT %d OFFSET %d",
                 $limit,
@@ -153,43 +153,51 @@ class Batch_Reindexer {
                 $actor_network = $this->extract_actor_network($event_data);
 
                 if (!$dry_run) {
-                    // تحديث السجل في قاعدة البيانات
-                    $update_data = [
-                        'hybrid_layers' => $layers_json,
-                        'osint_type' => $primary_layer,
-                        'multi_domain_score' => $multi_domain,
-                        'threat_score' => (int)$scores['threat_score'],
-                        'escalation_score' => (int)$scores['escalation_score'],
-                        'confidence_score' => (int)$scores['confidence_score'],
-                        'risk_level' => $scores['risk_level'],
-                        'primary_actor' => $actor_network['primary_actor'] ?? '',
-                        'actor_network' => $actor_network['actor_network'] ?? null,
-                        'reindexed_at' => current_time('mysql')
-                    ];
+                    // تحديث السجل في قاعدة البيانات - نتحقق مما إذا كان التحديث ضرورياً لتجنب الكتابة المكررة
+                    $current_data = $wpdb->get_row($wpdb->prepare("SELECT threat_score, hybrid_layers FROM {$this->table_name} WHERE id = %d", $event['id']), ARRAY_A);
+                    
+                    // نحدث فقط إذا كانت البيانات مختلفة أو لم تُحلل من قبل
+                    $needs_update = empty($current_data['threat_score']) || $current_data['threat_score'] == 0 || empty($current_data['hybrid_layers']);
+                    
+                    if ($needs_update) {
+                        $update_data = [
+                            'hybrid_layers' => $layers_json,
+                            'osint_type' => $primary_layer,
+                            'multi_domain_score' => $multi_domain,
+                            'threat_score' => (int)$scores['threat_score'],
+                            'escalation_score' => (int)$scores['escalation_score'],
+                            'confidence_score' => (int)$scores['confidence_score'],
+                            'risk_level' => $scores['risk_level'],
+                            'primary_actor' => $actor_network['primary_actor'] ?? '',
+                            'actor_network' => $actor_network['actor_network'] ?? null,
+                            'reindexed_at' => current_time('mysql')
+                        ];
 
-                    $wpdb->update(
-                        $this->table_name,
-                        $update_data,
-                        ['id' => $event['id']],
-                        [
-                            'hybrid_layers' => '%s',
-                            'osint_type' => '%s',
-                            'multi_domain_score' => '%f',
-                            'threat_score' => '%d',
-                            'escalation_score' => '%d',
-                            'confidence_score' => '%d',
-                            'risk_level' => '%s',
-                            'primary_actor' => '%s',
-                            'actor_network' => '%s',
-                            'reindexed_at' => '%s'
-                        ],
-                        ['id' => '%d']
-                    );
+                        $wpdb->update(
+                            $this->table_name,
+                            $update_data,
+                            ['id' => $event['id']],
+                            [
+                                'hybrid_layers' => '%s',
+                                'osint_type' => '%s',
+                                'multi_domain_score' => '%f',
+                                'threat_score' => '%d',
+                                'escalation_score' => '%d',
+                                'confidence_score' => '%d',
+                                'risk_level' => '%s',
+                                'primary_actor' => '%s',
+                                'actor_network' => '%s',
+                                'reindexed_at' => '%s'
+                            ],
+                            ['id' => '%d']
+                        );
 
-                    if ($wpdb->last_error) {
-                        throw new \Exception($wpdb->last_error);
+                        if ($wpdb->last_error) {
+                            throw new \Exception($wpdb->last_error);
+                        }
                     }
                     
+                    // نعتبر الحدث محدثاً سواء تم التحديث فعلياً أم لا (لتتبع التقدم)
                     $this->stats['updated']++;
                 } else {
                     $this->stats['updated']++; // في وضع التجربة نعتبرها محدثة
@@ -436,11 +444,11 @@ class Batch_Reindexer {
         while ($total_processed < $total_limit) {
             $result = $this->run_batch($batch_size, $offset, $dry_run);
             
-            if ($result['status'] === 'completed' || empty($result['stats']['processed'])) {
+            if ($result['status'] === 'completed' || empty($result['stats']['updated'])) {
                 break;
             }
             
-            $total_processed += $result['stats']['processed'];
+            $total_processed += $result['stats']['updated'];
             $offset += $batch_size;
             
             // وقت راحة قصير لتجنب ضغط القاعدة

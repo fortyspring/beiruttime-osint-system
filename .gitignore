@@ -1,3 +1,3 @@
-(beiruttime-osint-pro.php and src/services/class-batch-reindexer.php are PHP source files, which shouldn't be ignored)
+(beiruttime-osint-pro.php and src/services/class-batch-reindexer.php are PHP source files, which should not be added to .gitignore)
 
 (empty — output nothing)

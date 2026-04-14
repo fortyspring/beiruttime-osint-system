@@ -4552,8 +4552,11 @@ function sod_ajax_dashboard_data_v2(): void {
     // التحقق من Nonce للزوار فقط، المسجلين يتجاوزون هذا الشرط
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
-        if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
-            wp_send_json_error(['message'=>'خطأ في التحقق'],403);
+        $nonce_check = sod_verify_ajax_nonce($nonce);
+        if (is_wp_error($nonce_check)) {
+            $logger = SOD_Security_Logger::get_instance();
+            $logger->log_unauthorized_access('dashboard_data', ['reason' => $nonce_check->get_error_message()]);
+            wp_send_json_error(['message' => $nonce_check->get_error_message()], 403);
         }
     }
     $hours=(int)($_POST['hours']??24); $region=sanitize_text_field(wp_unslash($_POST['region']??'all')); $min_score=max(0,(int)($_POST['min_score']??0));
@@ -4578,8 +4581,11 @@ function sod_ajax_ticker_data_v2(): void {
     
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
-        if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
-            wp_send_json_error(['message'=>'خطأ في التحقق'],403);
+        $nonce_check = sod_verify_ajax_nonce($nonce);
+        if (is_wp_error($nonce_check)) {
+            $logger = SOD_Security_Logger::get_instance();
+            $logger->log_unauthorized_access('ticker_data', ['reason' => $nonce_check->get_error_message()]);
+            wp_send_json_error(['message' => $nonce_check->get_error_message()], 403);
         }
     }
     $events=sod_get_events(['hours'=>6,'min_score'=>0,'limit'=>80]);
@@ -4607,8 +4613,11 @@ function sod_ajax_threat_analysis_v2(): void {
     
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
-        if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
-            wp_send_json_error(['message'=>'خطأ في التحقق'],403);
+        $nonce_check = sod_verify_ajax_nonce($nonce);
+        if (is_wp_error($nonce_check)) {
+            $logger = SOD_Security_Logger::get_instance();
+            $logger->log_unauthorized_access('threat_analysis', ['reason' => $nonce_check->get_error_message()]);
+            wp_send_json_error(['message' => $nonce_check->get_error_message()], 403);
         }
     }
     $events_72h=sod_get_events(['hours'=>72,'limit'=>1000]);
@@ -4662,8 +4671,11 @@ function sod_ajax_ai_brief_v2(): void {
     
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
-        if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
-            wp_send_json_error(['message'=>'خطأ في التحقق'],403);
+        $nonce_check = sod_verify_ajax_nonce($nonce);
+        if (is_wp_error($nonce_check)) {
+            $logger = SOD_Security_Logger::get_instance();
+            $logger->log_unauthorized_access('ai_brief', ['reason' => $nonce_check->get_error_message()]);
+            wp_send_json_error(['message' => $nonce_check->get_error_message()], 403);
         }
     }
     $events=sod_get_events(['hours'=>24,'limit'=>20,'min_score'=>80]);
@@ -4694,8 +4706,11 @@ function sod_ajax_heatmap_data_v2(): void {
     
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
-        if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
-            wp_send_json_error(['message'=>'خطأ في التحقق'],403);
+        $nonce_check = sod_verify_ajax_nonce($nonce);
+        if (is_wp_error($nonce_check)) {
+            $logger = SOD_Security_Logger::get_instance();
+            $logger->log_unauthorized_access('heatmap_data', ['reason' => $nonce_check->get_error_message()]);
+            wp_send_json_error(['message' => $nonce_check->get_error_message()], 403);
         }
     }
     $hours = (int)($_POST['hours'] ?? 72);

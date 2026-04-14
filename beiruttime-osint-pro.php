@@ -3980,8 +3980,12 @@ class SO_Alert_Dispatcher {
         if (self::already_sent($item['hash_id']??'')) return;
         // وسم تجاوز العتبة في البيانات لتوضيح السبب في الرسالة
         if ($is_martyrdom && $score < $threshold) $item['_martyrdom_bypass'] = true;
+        
+        // الحصول على قالب ديسكورد المخصص
+        $discord_tpl = json_decode((string)get_option('so_discord_template_fields', '{}'), true) ?: [];
+        
         $telegram_ok = self::send_telegram($item);
-        $discord_ok  = self::send_discord($item);
+        $discord_ok  = self::send_discord($item, $discord_tpl);
         if ($telegram_ok || $discord_ok) self::mark_sent($item['hash_id']??'', $item['source_name']??'');
     }
     private static function already_sent($hash) {
@@ -9225,6 +9229,7 @@ class SO_Admin_UI {
         add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_admin_assets']);
         add_action('wp_ajax_so_manual_sync', 'so_ajax_manual_sync_v2');
         add_action('wp_ajax_so_test_telegram', [__CLASS__, 'ajax_test_telegram']);
+        add_action('wp_ajax_so_test_discord', [__CLASS__, 'ajax_test_discord']);
     }
 
     public static function enqueue_admin_assets($hook) {
@@ -9519,6 +9524,14 @@ class SO_Admin_UI {
             update_option('so_tg_channel_link', esc_url_raw(wp_unslash($_POST['so_tg_channel_link'] ?? '')));
             update_option('so_tg_wa_channel', esc_url_raw(wp_unslash($_POST['so_tg_wa_channel'] ?? '')));
             update_option('so_tg_footer_notes', sanitize_text_field(wp_unslash($_POST['so_tg_footer_notes'] ?? '')));
+            
+            // ── قالب ديسكورد ────────────────────────────────────────────────
+            $dc_all_keys = ['source','classification','level','actor','region','score','threat_score','risk_level','osint_type','hybrid_layers','target','intent','context','weapon','primary_actor'];
+            $dc_checked = array_map('sanitize_text_field', (array)($_POST['so_discord_tpl_fields'] ?? []));
+            $dc_tpl_data = [];
+            foreach ($dc_all_keys as $k) $dc_tpl_data[$k] = in_array($k, $dc_checked, true);
+            update_option('so_discord_template_fields', wp_json_encode($dc_tpl_data));
+            
             wp_safe_redirect(add_query_arg('saved','1', admin_url('admin.php?page=strategic-osint-alerts'))); exit;
         }
 
@@ -9875,6 +9888,27 @@ class SO_Admin_UI {
         }
         $ok ? wp_send_json_success(['message'=>'تم الإرسال بنجاح']) : wp_send_json_error(['message'=>'فشل الإرسال — تحقق من التوكن وصلاحيات البوت']);
     }
+    
+    public static function ajax_test_discord() {
+        if (!current_user_can('manage_options') || !check_ajax_referer('so_test_discord','nonce',false)) { wp_send_json_error(['message'=>'غير مصرح']); }
+        $webhook = trim(get_option('so_discord_webhook',''));
+        if (empty($webhook) || !filter_var($webhook, FILTER_VALIDATE_URL)) { wp_send_json_error(['message'=>'يرجى إدخال Webhook ديسكورد أولاً']); }
+        
+        $test_item = [
+            'title' => '🧪 اختبار Beiruttime OSINT',
+            'score' => 50,
+            'source_name' => 'نظام الاختبار',
+            'intel_type' => 'اختبار تقني',
+            'tactical_level' => 'تكتيكي',
+            'actor_v2' => 'لا يوجد',
+            'region' => 'اختبار',
+            'link' => home_url(),
+            'event_timestamp' => time(),
+        ];
+        
+        $ok = self::send_discord($test_item, []);
+        $ok ? wp_send_json_success(['message'=>'تم الإرسال إلى ديسكورد بنجاح']) : wp_send_json_error(['message'=>'فشل الإرسال — تحقق من رابط Webhook']);
+    }
 
     private static function admin_wrap_open($title = '') {
         $sync_url = wp_nonce_url(admin_url('admin.php?page=strategic-osint&action=so_manual_sync'), 'so_manual_sync');
@@ -10227,8 +10261,17 @@ class SO_Admin_UI {
             </div>
         </div>
         <div class="so-admin-card">
-            <h3>🧩 قالب رسالة تيليغرام</h3>
-            <p style="color:#64748b;font-size:12px;margin-bottom:16px;">تحكّم في الحقول التي تظهر في كل إشعار يُرسل إلى تيليغرام.</p>
+            <h3>🧩 قوالب الرسائل والتنبيهات</h3>
+            <p style="color:#64748b;font-size:12px;margin-bottom:16px;">تحكّم في الحقول التي تظهر في كل إشعار يُرسل إلى تيليغرام وديسكورد.</p>
+            
+            <!-- تبويبات للقوالب -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid #1e3a5f;padding-bottom:8px;">
+                <button type="button" onclick="document.getElementById('tg-tpl-section').style.display='block';document.getElementById('dc-tpl-section').style.display='none';this.classList.add('active');" style="background:#3b82f6;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">🔵 تيليغرام</button>
+                <button type="button" onclick="document.getElementById('tg-tpl-section').style.display='none';document.getElementById('dc-tpl-section').style.display='block';this.classList.add('active');" style="background:#5865F2;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;">🟣 ديسكورد</button>
+            </div>
+            
+            <!-- قسم قالب تيليغرام -->
+            <div id="tg-tpl-section">
             <?php
             $tpl_saved = json_decode((string)get_option('so_tg_template_fields','{}'), true) ?: [];
             $tpl_fields = [
@@ -10244,6 +10287,7 @@ class SO_Admin_UI {
                 'image'          => 'إرسال صورة الخبر (sendPhoto) 🖼️',
             ];
             ?>
+            <h4 style="color:#3b82f6;margin:16px 0 12px 0;">🔵 قالب رسالة تيليغرام</h4>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px;">
             <?php foreach ($tpl_fields as $key => $label): $checked = isset($tpl_saved[$key]) ? (bool)$tpl_saved[$key] : true; ?>
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:#071220;padding:10px 12px;border-radius:8px;border:1px solid #1e3a5f;">
@@ -10276,6 +10320,52 @@ class SO_Admin_UI {
                         <span>تفعيل — رسائل تحوي (ارتقوا / شهداء / استشهد / مجزرة...) تُرسل حتى لو نقاطها أقل من العتبة</span>
                     </label>
                 </div>
+            </div>
+        </div>
+        
+        <!-- قسم قالب ديسكورد -->
+        <div id="dc-tpl-section" style="display:none;">
+            <?php
+            $dc_tpl_saved = json_decode((string)get_option('so_discord_template_fields','{}'), true) ?: [];
+            $dc_tpl_fields = [
+                'source'         => 'المصدر 📰',
+                'classification' => 'التصنيف 📌',
+                'level'          => 'المستوى 🎯',
+                'actor'          => 'الفاعل 🎭',
+                'region'         => 'المنطقة 📍',
+                'score'          => 'الخطورة ⚠️',
+                'threat_score'   => 'درجة التهديد 🔥',
+                'risk_level'     => 'مستوى الخطر 📊',
+                'osint_type'     => 'نوع OSINT 🧩',
+                'hybrid_layers'  => 'طبقات الحرب المركبة ⚔️',
+                'target'         => 'الهدف 🎯',
+                'intent'         => 'النية 💡',
+                'context'        => 'السياق 🌐',
+                'weapon'         => 'الوسيلة ⚙️',
+                'primary_actor'  => 'الفاعل الرئيسي 👤',
+            ];
+            ?>
+            <h4 style="color:#5865F2;margin:16px 0 12px 0;">🟣 قالب رسالة ديسكورد</h4>
+            <p style="color:#94a3b8;font-size:12px;margin-bottom:12px;">حدد الحقول التي تريد إظهارها في رسائل ديسكورد Embed:</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px;">
+            <?php foreach ($dc_tpl_fields as $key => $label): $checked = isset($dc_tpl_saved[$key]) ? (bool)$dc_tpl_saved[$key] : true; ?>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:#071220;padding:10px 12px;border-radius:8px;border:1px solid #1e3a5f;">
+                    <input type="checkbox" name="so_discord_tpl_fields[]" value="<?php echo esc_attr($key); ?>" <?php checked($checked, true); ?> style="width:16px;height:16px;accent-color:#5865F2;">
+                    <span style="font-size:13px;color:#e0f2ff;"><?php echo esc_html($label); ?></span>
+                </label>
+            <?php endforeach; ?>
+            </div>
+            
+            <div class="so-field-row">
+                <label class="so-field-label">Webhook ديسكورد</label>
+                <input type="url" class="so-input" name="so_discord_webhook" value="<?php echo esc_attr(get_option('so_discord_webhook','')); ?>" placeholder="https://discord.com/api/webhooks/...">
+                <div class="so-field-desc" style="grid-column:2;">رابط Webhook الخاص بالقناة - يتم إرسال التنبيهات إليه تلقائياً</div>
+            </div>
+            
+            <div class="so-field-row">
+                <label class="so-field-label">اختبار إرسال ديسكورد</label>
+                <button type="button" id="so-test-dc-btn" class="so-btn" style="background:#5865F2;color:white;">🟣 اختبار الإرسال</button>
+                <span id="so-test-dc-result" style="margin-left:12px;font-weight:bold;"></span>
             </div>
         </div>
 
@@ -10318,10 +10408,20 @@ class SO_Admin_UI {
         <button type="submit" name="so_save_alerts" class="so-btn">💾 حفظ إعدادات التنبيهات</button>
         </form>
         <script>
+        // اختبار تيليغرام
         document.getElementById('so-test-tg-btn').addEventListener('click',function(){
             const btn=this;const result=document.getElementById('so-test-tg-result');
             btn.disabled=true;result.textContent='⏳ جارٍ الاختبار...';result.style.color='#7aa0c4';
             const fd=new FormData();fd.append('action','so_test_telegram');fd.append('nonce','<?php echo wp_create_nonce('so_test_telegram'); ?>');
+            fetch('<?php echo esc_js(admin_url('admin-ajax.php')); ?>',{method:'POST',body:fd,credentials:'same-origin'})
+            .then(r=>r.json()).then(j=>{if(j.success){result.textContent='✅ '+j.data.message;result.style.color='#22c55e';}else{result.textContent='❌ '+(j.data?.message||'فشل');result.style.color='#ef4444';}btn.disabled=false;}).catch(()=>{result.textContent='❌ خطأ في الاتصال';result.style.color='#ef4444';btn.disabled=false;});
+        });
+        
+        // اختبار ديسكورد
+        document.getElementById('so-test-dc-btn').addEventListener('click',function(){
+            const btn=this;const result=document.getElementById('so-test-dc-result');
+            btn.disabled=true;result.textContent='⏳ جارٍ الاختبار...';result.style.color='#7aa0c4';
+            const fd=new FormData();fd.append('action','so_test_discord');fd.append('nonce','<?php echo wp_create_nonce('so_test_discord'); ?>');
             fetch('<?php echo esc_js(admin_url('admin-ajax.php')); ?>',{method:'POST',body:fd,credentials:'same-origin'})
             .then(r=>r.json()).then(j=>{if(j.success){result.textContent='✅ '+j.data.message;result.style.color='#22c55e';}else{result.textContent='❌ '+(j.data?.message||'فشل');result.style.color='#ef4444';}btn.disabled=false;}).catch(()=>{result.textContent='❌ خطأ في الاتصال';result.style.color='#ef4444';btn.disabled=false;});
         });

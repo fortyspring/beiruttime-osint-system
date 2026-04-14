@@ -9431,9 +9431,21 @@ class SO_Admin_UI {
 
                     if (result.success) {
                         var data = result.data;
-                        btState.processed += data.processed || 0;
+                        // نستخدم offset_next إذا كان متاحاً للحصول على التقدم الدقيق
+                        if (data.offset_next !== undefined) {
+                            btState.processed = data.offset_next;
+                        } else {
+                            btState.processed += data.processed || 0;
+                        }
                         btState.errors += data.errors || 0;
-                        btState.remaining = data.remaining || 0;
+                        
+                        // حساب المتبقي بدقة
+                        if (data.total !== undefined) {
+                            btState.remaining = Math.max(0, data.total - btState.processed);
+                        } else {
+                            btState.remaining = data.remaining || 0;
+                        }
+                        
                         btState.currentBatch++;
 
                         btLog("✅ تمت معالجة " + data.processed + " حدث بنجاح (" + data.errors + " أخطاء)", "success");
@@ -16439,16 +16451,17 @@ function sod_ajax_bt_reindex_batch() {
         $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
         $result = $reindexer->run_batch($batch_size, $offset, false);
         
-        $remaining = 0;
-        if (isset($reindexer->table_name)) {
-            $remaining = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE hybrid_layers IS NULL OR hybrid_layers = '' OR threat_score = 0");
-        }
+        // حساب المتبقي بناءً على إجمالي الأحداث ناقص المعالج
+        $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name}");
+        $remaining = max(0, $total_events - ($offset + ($result['stats']['updated'] ?? 0)));
         
         wp_send_json_success([
             'processed' => $result['stats']['updated'] ?? 0,
             'errors' => $result['stats']['errors'] ?? 0,
             'remaining' => $remaining,
-            'message' => $result['message'] ?? ''
+            'message' => $result['message'] ?? '',
+            'total' => $total_events,
+            'offset_next' => $offset + ($result['stats']['updated'] ?? 0)
         ]);
     } catch (\Throwable $e) {
         error_log('Batch Reindexer AJAX Error: ' . $e->getMessage());

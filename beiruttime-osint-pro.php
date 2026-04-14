@@ -39,8 +39,10 @@ require_once __DIR__ . '/src/services/class-verification.php';
 require_once __DIR__ . '/src/services/class-early-warning.php';
 
 
-function sod_has_arabic_chars(string $text): bool {
-    return $text !== '' && preg_match('/\p{Arabic}/u', $text) === 1;
+if (!function_exists('sod_has_arabic_chars')) {
+    function sod_has_arabic_chars(string $text): bool {
+        return $text !== '' && preg_match('/\p{Arabic}/u', $text) === 1;
+    }
 }
 
 function sod_fix_mojibake_text($value): string {

@@ -18,6 +18,10 @@ $sod_inc_base = __DIR__ . '/includes';
 if (is_dir($sod_inc_base)) {
     require_once $sod_inc_base . '/classifier-service.php';
     require_once $sod_inc_base . '/newslog-service.php';
+    // تحميل معالجات الأمان
+    if (file_exists($sod_inc_base . '/security/class-security-fixes.php')) {
+        require_once $sod_inc_base . '/security/class-security-fixes.php';
+    }
 }
 
 // تحميل السمات المساعدة (Traits)
@@ -4532,10 +4536,19 @@ function sod_verify_nonce(): bool {
 // 15. AJAX Handlers (V12 + V13 combined) - محدث للزوار غير المسجلين
 // ==========================================================================
 
-// Dashboard Data - متاح للزوار والمسجلين
+// Dashboard Data - متاح للزوار والمسجلين مع Rate Limiting
 add_action('wp_ajax_sod_get_dashboard_data',        'sod_ajax_dashboard_data_v2');
 add_action('wp_ajax_nopriv_sod_get_dashboard_data', 'sod_ajax_dashboard_data_v2');
 function sod_ajax_dashboard_data_v2(): void {
+    // تطبيق Rate Limiting
+    $rate_limiter = SOD_Rate_Limiter::get_instance();
+    $rate_check = $rate_limiter->check_rate_limit('ajax');
+    if (is_wp_error($rate_check)) {
+        $logger = SOD_Security_Logger::get_instance();
+        $logger->log_rate_limit_exceeded('dashboard_data', 'ajax');
+        wp_send_json_error(['message' => $rate_check->get_error_message()], 429);
+    }
+    
     // التحقق من Nonce للزوار فقط، المسجلين يتجاوزون هذا الشرط
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
@@ -4550,10 +4563,19 @@ function sod_ajax_dashboard_data_v2(): void {
     wp_send_json_success(['events'=>$safe_events,'analytics'=>$analytics,'time'=>time()]);
 }
 
-// Ticker Data - متاح للزوار والمسجلين
+// Ticker Data - متاح للزوار والمسجلين مع Rate Limiting
 add_action('wp_ajax_sod_get_ticker_data',        'sod_ajax_ticker_data_v2');
 add_action('wp_ajax_nopriv_sod_get_ticker_data', 'sod_ajax_ticker_data_v2');
 function sod_ajax_ticker_data_v2(): void {
+    // تطبيق Rate Limiting
+    $rate_limiter = SOD_Rate_Limiter::get_instance();
+    $rate_check = $rate_limiter->check_rate_limit('ajax');
+    if (is_wp_error($rate_check)) {
+        $logger = SOD_Security_Logger::get_instance();
+        $logger->log_rate_limit_exceeded('ticker_data', 'ajax');
+        wp_send_json_error(['message' => $rate_check->get_error_message()], 429);
+    }
+    
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
         if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
@@ -4570,10 +4592,19 @@ function sod_ajax_ticker_data_v2(): void {
     wp_send_json_success(['critical'=>array_values(array_map($map_headline,$critical)),'headlines'=>$headlines,'region_scores'=>$region_scores,'total'=>count($events),'time'=>time()]);
 }
 
-// Threat Analysis - متاح للزوار والمسجلين
+// Threat Analysis - متاح للزوار والمسجلين مع Rate Limiting
 add_action('wp_ajax_sod_get_threat_analysis',        'sod_ajax_threat_analysis_v2');
 add_action('wp_ajax_nopriv_sod_get_threat_analysis', 'sod_ajax_threat_analysis_v2');
 function sod_ajax_threat_analysis_v2(): void {
+    // تطبيق Rate Limiting
+    $rate_limiter = SOD_Rate_Limiter::get_instance();
+    $rate_check = $rate_limiter->check_rate_limit('ajax');
+    if (is_wp_error($rate_check)) {
+        $logger = SOD_Security_Logger::get_instance();
+        $logger->log_rate_limit_exceeded('threat_analysis', 'ajax');
+        wp_send_json_error(['message' => $rate_check->get_error_message()], 429);
+    }
+    
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
         if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
@@ -4616,10 +4647,19 @@ function so_ajax_manual_sync_v2(): void {
     wp_send_json_success(['inserted'=>$inserted,'message'=>$summary['message']??'تمت المزامنة','raw_count'=>$summary['raw_count']??0]);
 }
 
-// AI Brief - متاح للزوار والمسجلين
+// AI Brief - متاح للزوار والمسجلين مع Rate Limiting
 add_action('wp_ajax_sod_get_ai_brief', 'sod_ajax_ai_brief_v2');
 add_action('wp_ajax_nopriv_sod_get_ai_brief', 'sod_ajax_ai_brief_v2');
 function sod_ajax_ai_brief_v2(): void {
+    // تطبيق Rate Limiting
+    $rate_limiter = SOD_Rate_Limiter::get_instance();
+    $rate_check = $rate_limiter->check_rate_limit('ajax');
+    if (is_wp_error($rate_check)) {
+        $logger = SOD_Security_Logger::get_instance();
+        $logger->log_rate_limit_exceeded('ai_brief', 'ajax');
+        wp_send_json_error(['message' => $rate_check->get_error_message()], 429);
+    }
+    
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
         if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
@@ -4638,11 +4678,20 @@ function sod_ajax_ai_brief_v2(): void {
 // إذا كنت بحاجة إلى وظائف إضافية، أضفها للدالة الأصلية أعلاه.
 
 // ==========================================================================
-// 15d. Heatmap Data - متاح للزوار والمسجلين
+// 15d. Heatmap Data - متاح للزوار والمسجلين مع Rate Limiting
 // ==========================================================================
 add_action('wp_ajax_sod_get_heatmap_data',        'sod_ajax_heatmap_data_v2');
 add_action('wp_ajax_nopriv_sod_get_heatmap_data', 'sod_ajax_heatmap_data_v2');
 function sod_ajax_heatmap_data_v2(): void {
+    // تطبيق Rate Limiting
+    $rate_limiter = SOD_Rate_Limiter::get_instance();
+    $rate_check = $rate_limiter->check_rate_limit('ajax');
+    if (is_wp_error($rate_check)) {
+        $logger = SOD_Security_Logger::get_instance();
+        $logger->log_rate_limit_exceeded('heatmap_data', 'ajax');
+        wp_send_json_error(['message' => $rate_check->get_error_message()], 429);
+    }
+    
     if (!current_user_can('read')) {
         $nonce = sanitize_text_field(wp_unslash($_POST['nonce'] ?? $_GET['nonce'] ?? ''));
         if (empty($nonce) || wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION) === false) {
@@ -9646,13 +9695,18 @@ class SO_Admin_UI {
         if (isset($_POST['so_import_settings']) && check_admin_referer('so_import_settings_nonce')) {
             $errors = [];
             $file = $_FILES['so_settings_file'] ?? null;
-            if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
-                $errors[] = 'خطأ في رفع الملف.';
+            
+            // استخدام دالة الرفع الآمن
+            $uploaded = sod_secure_file_upload($file, ['application/json' => ['json']]);
+            
+            if (is_wp_error($uploaded)) {
+                $errors[] = $uploaded->get_error_message();
             } else {
-                $raw = file_get_contents($file['tmp_name']); // phpcs:ignore WordPress.WP.AlternativeFunctions
+                $raw = file_get_contents($uploaded['file']);
                 $decoded = json_decode($raw, true);
                 if (!is_array($decoded) || !isset($decoded['_plugin'])) {
                     $errors[] = 'الملف غير صالح — يرجى استخدام ملف JSON من هذه الإضافة فقط.';
+                    wp_delete_file($uploaded['file']); // تنظيف الملف غير الصالح
                 } else {
                     $allowed = array_keys(self::get_all_plugin_options());
                     $restored = 0;
@@ -9663,6 +9717,7 @@ class SO_Admin_UI {
                             $restored++;
                         }
                     }
+                    wp_delete_file($uploaded['file']); // تنظيف الملف بعد المعالجة
                     wp_safe_redirect(add_query_arg(['saved'=>'1','restored'=>$restored], admin_url('admin.php?page=strategic-osint-io'))); exit;
                 }
             }
@@ -9703,15 +9758,21 @@ class SO_Admin_UI {
         if (isset($_POST['so_import_banks']) && check_admin_referer('so_import_banks_nonce')) {
             global $wpdb;
             $file = $_FILES['so_banks_file'] ?? null;
-            if (!$file || $file['error'] !== UPLOAD_ERR_OK) {
-                wp_safe_redirect(add_query_arg(['io_error'=>rawurlencode('خطأ في رفع الملف.')], admin_url('admin.php?page=strategic-osint-io'))); exit;
+            
+            // استخدام دالة الرفع الآمن للملفات CSV
+            $uploaded = sod_secure_file_upload($file, ['text/csv' => ['csv'], 'application/vnd.ms-excel' => ['csv']]);
+            
+            if (is_wp_error($uploaded)) {
+                wp_safe_redirect(add_query_arg(['io_error'=>rawurlencode($uploaded->get_error_message())], admin_url('admin.php?page=strategic-osint-io'))); exit;
             }
-            $handle = fopen($file['tmp_name'], 'r'); // phpcs:ignore WordPress.WP.AlternativeFunctions
+            
+            $handle = fopen($uploaded['file'], 'r');
             if (!$handle) {
+                wp_delete_file($uploaded['file']);
                 wp_safe_redirect(add_query_arg(['io_error'=>rawurlencode('تعذّر قراءة الملف.')], admin_url('admin.php?page=strategic-osint-io'))); exit;
             }
             // Strip BOM
-            $bom = fread($handle, 3); // phpcs:ignore WordPress.WP.AlternativeFunctions
+            $bom = fread($handle, 3);
             if ($bom !== "\xEF\xBB\xBF") rewind($handle);
             $header = fgetcsv($handle); // skip header row
             $imported = 0; $skipped = 0;
@@ -9735,7 +9796,8 @@ class SO_Admin_UI {
                 }
                 $imported++;
             }
-            fclose($handle); // phpcs:ignore WordPress.WP.AlternativeFunctions
+            fclose($handle);
+            wp_delete_file($uploaded['file']); // تنظيف الملف بعد المعالجة
             wp_safe_redirect(add_query_arg(['saved'=>'1','banks_imported'=>$imported,'banks_skipped'=>$skipped], admin_url('admin.php?page=strategic-osint-io'))); exit;
         }
 

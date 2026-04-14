@@ -76,13 +76,26 @@ class Batch_Reindexer {
 
         // تحميل محركات التحليل إذا لم تكن محملة
         if (!class_exists('Beiruttime\OSINT\Services\HybridWarfareEngine')) {
+            // يجب تحميل الـ Singleton trait أولاً
+            if (!trait_exists('Beiruttime\OSINT\Traits\Singleton')) {
+                require_once __DIR__ . '/../traits/trait-singleton.php';
+            }
             require_once __DIR__ . '/class-hybrid-warfare.php';
         }
         
-        $hybrid_engine = \Beiruttime\OSINT\Services\HybridWarfareEngine::instance();
+        $hybrid_engine = null;
+        $use_legacy = false;
+        try {
+            $hybrid_engine = \Beiruttime\OSINT\Services\HybridWarfareEngine::instance();
+        } catch (\Exception $e) {
+            error_log('Beiruttime OSINT: Failed to initialize HybridWarfareEngine: ' . $e->getMessage());
+            $use_legacy = true;
+        }
         
         // تحديد ما إذا كان يجب استخدام المحرك القديم (افتراضي: استخدام المحرك الجديد)
-        $use_legacy = false;
+        if ($hybrid_engine === null) {
+            $use_legacy = true;
+        }
 
         foreach ($events as $event) {
             try {

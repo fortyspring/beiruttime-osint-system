@@ -37,7 +37,7 @@ require_once $sod_inc_base . '/class-entity-relations-manager.php';
 require_once __DIR__ . '/src/services/class-hybrid-warfare.php';
 require_once __DIR__ . '/src/services/class-verification.php';
 require_once __DIR__ . '/src/services/class-early-warning.php';
-require_once __DIR__ . '/src/services/class-batch-reindexer.php';
+// لا نحمّل class-batch-reindexer هنا لأنه سيحمّل الـ traits بنفسه عند الحاجة
 
 
 if (!function_exists('sod_has_arabic_chars')) {

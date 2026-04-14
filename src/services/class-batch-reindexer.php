@@ -304,6 +304,88 @@ class Batch_Reindexer {
     }
 
     /**
+     * استخراج شبكة الفاعلين من الحدث
+     * 
+     * @param array $event_data بيانات الحدث
+     * @return array مصفوفة تحتوي على الفاعل الرئيسي وشبكة العلاقات
+     */
+    private function extract_actor_network($event_data) {
+        $title = $event_data['title'] ?? '';
+        $war_data = $event_data['war_data'] ?? '';
+        $actor_v2 = $event_data['actor_v2'] ?? '';
+        
+        // إذا كان هناك فاعل محدد مسبقاً
+        if (!empty($actor_v2)) {
+            return [
+                'primary_actor' => $actor_v2,
+                'actor_network' => json_encode(['primary' => $actor_v2, 'relations' => []], JSON_UNESCAPED_UNICODE)
+            ];
+        }
+        
+        $text = $title . ' ' . $war_data;
+        
+        // قوائم الفاعلين المحتملين
+        $actors_map = [
+            'حزب الله' => ['حزب الله', 'المقاومة الإسلامية', 'الضاحية'],
+            'إسرائيل' => ['إسرائيل', 'العدو الإسرائيلي', 'الجيش الإسرائيلي', 'تل أبيب'],
+            'سوريا' => ['سوريا', 'النظام السوري', 'دمشق', 'الجيش السوري'],
+            'الولايات المتحدة' => ['أمريكا', 'الولايات المتحدة', 'واشنطن', 'بايدن'],
+            'إيران' => ['إيران', 'طهران', 'الحرس الثوري'],
+            'لبنان' => ['لبنان', 'بيروت', 'الجيش اللبناني'],
+            'حماس' => ['حماس', 'غزة', 'فلسطين'],
+            'فتح' => ['فتح', 'السلطة الفلسطينية', 'أبو مازن'],
+            'تركيا' => ['تركيا', 'أنقرة', 'أردوغان'],
+            'روسيا' => ['روسيا', 'موسكو', 'بوتين', 'الكرملين']
+        ];
+        
+        $detected_actors = [];
+        $primary_actor = '';
+        $max_matches = 0;
+        
+        foreach ($actors_map as $actor_name => $keywords) {
+            $matches = 0;
+            foreach ($keywords as $keyword) {
+                if (mb_stripos($text, $keyword) !== false) {
+                    $matches++;
+                }
+            }
+            
+            if ($matches > 0) {
+                $detected_actors[$actor_name] = $matches;
+                if ($matches > $max_matches) {
+                    $max_matches = $matches;
+                    $primary_actor = $actor_name;
+                }
+            }
+        }
+        
+        // بناء شبكة العلاقات البسيطة
+        $relations = [];
+        if (count($detected_actors) >= 2) {
+            $actor_list = array_keys($detected_actors);
+            for ($i = 0; $i < count($actor_list); $i++) {
+                for ($j = $i + 1; $j < count($actor_list); $j++) {
+                    $relations[] = [
+                        'from' => $actor_list[$i],
+                        'to' => $actor_list[$j],
+                        'type' => 'confrontation', // يمكن تحسين هذا المنطق لاحقاً
+                        'strength' => min($detected_actors[$actor_list[$i]], $detected_actors[$actor_list[$j]])
+                    ];
+                }
+            }
+        }
+        
+        return [
+            'primary_actor' => $primary_actor,
+            'actor_network' => !empty($detected_actors) ? json_encode([
+                'primary' => $primary_actor,
+                'all_actors' => $detected_actors,
+                'relations' => $relations
+            ], JSON_UNESCAPED_UNICODE) : null
+        ];
+    }
+
+    /**
      * معالجة كاملة للأرشيف (تعمل عبر دفعات متتالية)
      * 
      * @param int $total_limit الحد الأقصى الإجمالي

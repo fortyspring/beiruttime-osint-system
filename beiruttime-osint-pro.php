@@ -4622,6 +4622,7 @@ class SOD_Rate_Limiter {
         return true;
     }
 }
+}
 
 if (!class_exists('SOD_Security_Logger')) {
 class SOD_Security_Logger {

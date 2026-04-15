@@ -1,18 +1,23 @@
 <?php
 /**
- * Plugin Name: Beiruttime OSINT Pro — نظام الرصد الاستخباراتي الموحد V17
- * Plugin URI: https://t.me/osint_lb
- * Description: V17.3 — الجيل الاحترافي الكامل مع قواميس موسعة: مركز قيادة استخباراتي [sod_command_deck]، بنوك المعلومات (أشخاص/أماكن/أسلحة/عمليات)، خوارزميات تصنيف متقدمة، رادار التهديد SVG، مخطط النشاط الساعي، رسم الكيانات والعلاقات، تتبع الساحات الساخنة، دعم كامل V11+V12+V16 في ملف واحد + 40+ فاعل عالمي + 30+ سلاح متطور.
- * Version: 17.4.2 AutoTrain AutoEval Fixed
- * Author: Mohammad Qassem / Beirut Time
- * Author URI: https://t.me/osint_lb
- * Text Domain: beiruttime-osint-pro
+ * Plugin Name: Beiruttime OSINT Intelligence System
+ * Plugin URI: https://github.com/fortyspring/beiruttime-osint-system
+ * Description: نظام متقدم للرصد والتحليل الاستخباراتي من المصادر المفتوحة مع دعم الحرب المركبة وتحليل التهديدات.
+ * Version: 3.2.0
+ * Author: Beiruttime Team
+ * Author URI: https://beiruttime.com
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: beiruttime-osint
  * Domain Path: /languages
  * Requires at least: 6.2
  * Requires PHP: 8.0
  */
 
-if (!defined('ABSPATH')) exit;
+// منع الوصول المباشر
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 $sod_inc_base = __DIR__ . '/includes';
 if (is_dir($sod_inc_base)) {

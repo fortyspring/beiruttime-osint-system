@@ -11761,6 +11761,21 @@ public static function ajax_reanalyze_reset() {
                     <span>المفحوص: <span id="so-dup-processed"><?php echo intval($dup_processed); ?></span> / <span id="so-dup-total"><?php echo intval($dup_total); ?></span></span>
                     <span>المحذوف: <span id="so-dup-deleted"><?php echo intval($dup_deleted_total); ?></span></span>
                     <span>الحالة: <span id="so-dup-status"><?php echo $dup_done ? 'مكتمل' : ($dup_running ? 'قيد المتابعة' : 'متوقف'); ?></span></span>
+                </div>
+                <div style="height:12px;background:#1e293b;border-radius:6px;overflow:hidden;margin:8px 0;">
+                    <div id="so-dup-bar" style="width:<?php echo intval($dup_percent); ?>%;height:100%;background:linear-gradient(90deg,#10b981,#059669);transition:width 0.3s;"></div>
+                </div>
+                <div style="font-size:12px;color:#94a3b8;margin-top:8px;" id="so-dup-msg">جاهز للتنظيف</div>
+                <div style="display:flex;gap:8px;margin-top:12px;align-items:center;flex-wrap:wrap;">
+                    <input type="number" id="so-dup-batch" value="<?php echo intval($dup_batch); ?>" min="5" max="2000" step="10" style="width:80px;padding:6px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#fff;">
+                    <span style="color:#94a3b8;font-size:12px;">حجم الدفعة</span>
+                    <button type="button" class="button button-primary" id="so-dup-run">بدء تنظيف المكرر</button>
+                    <button type="button" class="button button-secondary" id="so-dup-reset">إعادة من الصفر</button>
+                </div>
+            </div>
+            <script>
+            (function(){
+                const runBtn = document.getElementById('so-dup-run');
                 const resetBtn = document.getElementById('so-dup-reset');
                 const batchEl = document.getElementById('so-dup-batch');
                 const msgEl = document.getElementById('so-dup-msg');
@@ -11982,7 +11997,7 @@ public static function ajax_reanalyze_reset() {
             })();
             </script>
         </div>
-        <div class="so-admin-card" style="margin-bottom:14px;display:none;">
+        <div class="so-admin-card" style="margin-bottom:14px;">
             <h3>♻️ إعادة تحليل دفعة أخيرة من الأخبار</h3>
             <p>يعيد حساب المنطقة والفاعل والتصنيف والنقاط لآخر عدد تحدده من الأخبار. هذا الخيار يعيد نفس آخر الأخبار من البداية كل مرة، لذلك استخدم بطاقة المتابعة الكاملة أدناه إذا أردت تحليل كل القاعدة بالتدرج.</p>
             <form method="post" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
@@ -12060,11 +12075,11 @@ public static function ajax_reanalyze_reset() {
                     <span>حجم الدفعة:</span>
                     <input type="number" id="so-re-batch" value="<?php echo intval($p_batch ?: 10); ?>" min="5" max="2000" step="5" style="width:120px;">
                 </label>
-                <button type="button" class="button button-primary" id="so-re-run" onclick="if(window.sodDbAdminRunReanalyze){window.sodDbAdminRunReanalyze();return false;} var f=document.getElementById('so-re-legacy-form'); if(f){var r=f.querySelector('input[name=&quot;so_reanalyze_reset&quot;]'); if(r) r.checked=false; f.submit();} return false;"><?php echo $p_done ? 'تشغيل إعادة تحليل جديدة' : 'متابعة إعادة التحليل الكامل'; ?></button>
-                <button type="button" class="button" id="so-re-reset" onclick="if(window.sodDbAdminResetReanalyze){window.sodDbAdminResetReanalyze();return false;} var f=document.getElementById('so-re-legacy-form'); if(f){var r=f.querySelector('input[name=&quot;so_reanalyze_reset&quot;]'); if(r) r.checked=true; f.submit();} return false;">إعادة البدء من الصفر</button>
+                <button type="button" class="button button-primary" id="so-re-run"><?php echo $p_done ? 'تشغيل إعادة تحليل جديدة' : 'متابعة إعادة التحليل الكامل'; ?></button>
+                <button type="button" class="button" id="so-re-reset">إعادة البدء من الصفر</button>
                 <span id="so-re-msg" style="color:#64748b;font-size:12px;"></span>
             </div>
-            <script type="text/template" id="sod-db-re-inline-disabled-2">
+            <script>
             (function(){
                 const runBtn = document.getElementById('so-re-run');
                 const resetBtn = document.getElementById('so-re-reset');
@@ -12146,15 +12161,6 @@ public static function ajax_reanalyze_reset() {
                         msgEl.textContent = 'تعذر تصفير مؤشر إعادة التحليل: ' + ((err && err.message) ? err.message : 'unknown');
                     });
                 });
-                try {
-                    const host = runBtn.closest('.so-admin-card');
-                    let sib = host ? host.nextElementSibling : null;
-                    while (sib && !sib.classList.contains('so-admin-card')) {
-                        const next = sib.nextElementSibling;
-                        sib.remove();
-                        sib = next;
-                    }
-                } catch(e) {}
             })();
             </script>
         </div>

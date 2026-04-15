@@ -60,13 +60,13 @@ spl_autoload_register(function ($class) {
  * تحميل ملفات الوحدات الأساسية
  */
 function beiruttime_osint_load_modules() {
-    // تحميل واجهة الوحدات
-    require_once BEIRUTTIME_OSINT_MODULES_DIR . 'class-module-interface.php';
+    // تحميل واجهة الوحدات (من includes/modules)
+    require_once BEIRUTTIME_OSINT_INCLUDES_DIR . 'modules/class-module-interface.php';
     
-    // تحميل الفئة الأساسية للوحدات
-    require_once BEIRUTTIME_OSINT_MODULES_DIR . 'class-base-module.php';
+    // تحميل الفئة الأساسية للوحدات (من includes/modules)
+    require_once BEIRUTTIME_OSINT_INCLUDES_DIR . 'modules/class-base-module.php';
     
-    // تحميل محمّل الوحدات
+    // تحميل محمّل الوحدات (من modules/)
     require_once BEIRUTTIME_OSINT_MODULES_DIR . 'class-module-loader.php';
     
     // تحميل الوحدات الرئيسية

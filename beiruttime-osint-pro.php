@@ -37,11 +37,14 @@ if (!file_exists(BEIRUTTIME_OSINT_LOGS_DIR)) {
 }
 
 /**
- * فئة التحميل التلقائي للفئات
+ * فئة التحميل التلقائي للفئات (تم التصحيح)
  */
 spl_autoload_register(function ($class) {
-    $prefix = 'Beiruttime\OSINT\';
-    $base_dir = BEIRUTTIME_OSINT_INCLUDES_DIR;
+    // استخدام شرطتين مائلتين للهروب الصحيح
+    $prefix = 'Beiruttime\\OSINT\\';
+    
+    // توجيه المحمل إلى مجلد src للفئات الجديدة
+    $base_dir = BEIRUTTIME_OSINT_PLUGIN_DIR . 'src/';
     
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) {
@@ -49,7 +52,17 @@ spl_autoload_register(function ($class) {
     }
     
     $relative_class = substr($class, $len);
-    $file = $base_dir . 'class-' . strtolower(str_replace('_', '-', $relative_class)) . '.php';
+    
+    // التعامل مع المسارات الفرعية (Namespaces)
+    $parts = explode('\\', $relative_class);
+    $class_name = array_pop($parts);
+    
+    $dir = $base_dir;
+    if (!empty($parts)) {
+        $dir .= strtolower(implode('/', $parts)) . '/';
+    }
+    
+    $file = $dir . 'class-' . strtolower(str_replace('_', '-', $class_name)) . '.php';
     
     if (file_exists($file)) {
         require $file;

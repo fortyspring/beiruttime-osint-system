@@ -9571,7 +9571,6 @@ class SO_Admin_UI {
                     formData.append("action", "bt_reindex_batch");
                     formData.append("nonce", btConfig.nonce);
                     formData.append("batch_size", btConfig.batchSize);
-                    formData.append("offset", btState.processed);
 
                     var response = await fetch(btConfig.ajaxUrl, {
                         method: "POST",
@@ -9583,20 +9582,12 @@ class SO_Admin_UI {
 
                     if (result.success) {
                         var data = result.data;
-                        // نستخدم offset_next إذا كان متاحاً للحصول على التقدم الدقيق
-                        if (data.offset_next !== undefined) {
-                            btState.processed = data.offset_next;
-                        } else {
-                            btState.processed += data.processed || 0;
-                        }
+                        // تحديث العدد المعالج بناءً على النتيجة
+                        btState.processed += data.processed || 0;
                         btState.errors += data.errors || 0;
                         
-                        // حساب المتبقي بدقة
-                        if (data.total !== undefined) {
-                            btState.remaining = Math.max(0, data.total - btState.processed);
-                        } else {
-                            btState.remaining = data.remaining || 0;
-                        }
+                        // استخدام remaining مباشرة من الخادم
+                        btState.remaining = data.remaining || 0;
                         
                         btState.currentBatch++;
 
@@ -16251,15 +16242,15 @@ function sod_ajax_bt_reindex_batch() {
             require_once __DIR__ . '/beiruttime-osint-pro.php';
         }
         
-        error_log("Beiruttime OSINT AJAX: Starting batch - Size: $batch_size, Offset: $offset");
+        error_log("Beiruttime OSINT AJAX: Starting batch - Size: $batch_size");
         
         $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
-        $result = $reindexer->run_batch($batch_size, $offset, false);
+        $result = $reindexer->run_batch($batch_size, 0, false);
         
-        // حساب المتبقي بناءً على إجمالي الأحداث
-        $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name}");
+        // حساب المتبقي بناءً على الأحداث التي لم تُعالج بعد
+        $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE threat_score = 0 OR threat_score IS NULL");
         $processed_count = $result['stats']['updated'] ?? 0;
-        $remaining = max(0, $total_events - ($offset + $processed_count));
+        $remaining = max(0, $total_events - $processed_count);
         
         error_log("Beiruttime OSINT AJAX: Batch complete - Processed: $processed_count, Errors: " . ($result['stats']['errors'] ?? 0) . ", Remaining: $remaining");
         
@@ -16269,7 +16260,7 @@ function sod_ajax_bt_reindex_batch() {
             'remaining' => $remaining,
             'message' => $result['message'] ?? '',
             'total' => $total_events,
-            'offset_next' => $offset + $processed_count
+            'offset_next' => $processed_count
         ]);
     } catch (\Throwable $e) {
         error_log('Batch Reindexer AJAX Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());

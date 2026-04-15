@@ -56,17 +56,16 @@ class Batch_Reindexer {
         
         $this->stats['start_time'] = microtime(true);
         
-        // جلب الأحداث التي لم تُحلل بعد أو تحتاج تحديث - نستخدم offset حقيقي بغض النظر عن حالة threat_score
-        // لأن الـ offset يأتي من الجافاسكريبت ويعبر عن عدد الأحداث المعالجة فعلياً
-        // إصلاح: نجلب جميع الأحداث بترتيب زمني لنضمن معالجة كل الأحداث
+        // جلب الأحداث التي لم تُحلل بعد (threat_score = 0 أو NULL) فقط
+        // نستخدم ID للترقيم بدلاً من OFFSET لضمان عدم معالجة الأحداث المكررة
         $events = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT id, title, content, war_data, actor_v2, region, score, osint_type, hybrid_layers 
                  FROM {$this->table_name} 
-                 ORDER BY event_timestamp DESC 
-                 LIMIT %d OFFSET %d",
-                $limit,
-                $offset
+                 WHERE threat_score = 0 OR threat_score IS NULL
+                 ORDER BY id ASC 
+                 LIMIT %d",
+                $limit
             ),
             ARRAY_A
         );
@@ -85,8 +84,6 @@ class Batch_Reindexer {
                 require_once __DIR__ . '/../traits/trait-loggable.php';
             }
             require_once __DIR__ . '/class-hybrid-warfare.php';
-            require_once __DIR__ . '/class-verification.php';
-            require_once __DIR__ . '/class-early-warning.php';
         }
         
         $hybrid_engine = null;
@@ -99,7 +96,7 @@ class Batch_Reindexer {
         }
         
         // تسجيل بداية المعالجة للأغراض التشخيصية
-        error_log("Beiruttime OSINT: Starting batch processing - Events fetched: " . count($events) . ", Offset: " . $offset . ", Batch Size: " . $limit);
+        error_log("Beiruttime OSINT: Starting batch processing - Events fetched: " . count($events) . ", Batch Size: " . $limit);
         // تحديد ما إذا كان يجب استخدام المحرك القديم (افتراضي: استخدام المحرك الجديد)
         if ($hybrid_engine === null) {
             $use_legacy = true;
@@ -138,6 +135,7 @@ class Batch_Reindexer {
                 $event_data = [
                     'title' => $event['title'],
                     'description' => $description,
+                    'content' => $event['content'] ?? '',
                     'war_data' => $war_data_raw,
                     'actor_v2' => $event['actor_v2'],
                     'region' => $event['region'],

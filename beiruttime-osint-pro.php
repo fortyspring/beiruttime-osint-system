@@ -11651,6 +11651,10 @@ public static function ajax_reanalyze_reset() {
         }, 1200);
         </script>
         <?php endif; ?>
+        
+        <!-- لوحات المؤشرات الإحصائية -->
+        <div id="so-db-stats-container" style="margin:20px 0;"></div>
+        
         <div class="so-admin-card" style="margin-bottom:14px;">
             <h3>🧹 تنظيف الأخبار المكررة (AJAX)</h3>
             <?php

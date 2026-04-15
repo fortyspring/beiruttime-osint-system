@@ -5,7 +5,10 @@
 # Logs and Cache
 *.log
 .cache/
-composer.lock
+
+# Build artifacts (keep the zip file for releases)
+# !beiruttime-osint-pro.zip
+build/
 
 # IDE and Editor files
 .vscode/

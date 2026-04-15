@@ -1,1 +1,1 @@
-Nothing needs to be added to .gitignore since only a PHP source file (`run-tests.php`) was added, which is a regular source code file that should be tracked in version control.
+Nothing should be ignored based on the provided file changes, as they only include test PHP files which are source code files.

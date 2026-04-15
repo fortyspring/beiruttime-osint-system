@@ -29,7 +29,6 @@ require_once __DIR__ . '/src/traits/trait-singleton.php';
 require_once __DIR__ . '/src/traits/trait-loggable.php';
 
 // تحميل ملفات الحرب المركبة والتكامل
-require_once __DIR__ . '/osint-hybrid-warfare-update.php';
 require_once $sod_inc_base . '/class-hybrid-warfare-integrator.php';
 require_once $sod_inc_base . '/class-entity-relations-manager.php';
 

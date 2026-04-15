@@ -204,16 +204,39 @@ class HybridWarfareEngine {
 
     /**
      * العثور على الكلمات المفتاحية المطابقة
+     * 
+     * @param string $text النص للبحث فيه
+     * @param array $keywords مصفوفة الكلمات المفتاحية
+     * @return array الكلمات المطابقة
      */
     private function findMatches(string $text, array $keywords): array {
+        static $compiledPatterns = [];
         $matches = [];
         $textLower = mb_strtolower($text, 'UTF-8');
         
-        foreach ($keywords as $keyword) {
-            $keywordLower = mb_strtolower($keyword, 'UTF-8');
-            if (mb_strpos($textLower, $keywordLower) !== false) {
-                $matches[] = $keyword;
+        // تجميع الكلمات في نمط regex واحد لأداء أفضل
+        $cacheKey = md5(implode('|', $keywords));
+        
+        if (!isset($compiledPatterns[$cacheKey])) {
+            // هروب الأحرف الخاصة وإنشاء نمط مجمع
+            $escapedKeywords = array_map(function($kw) {
+                return preg_quote($kw, '/');
+            }, $keywords);
+            
+            $pattern = '/(' . implode('|', $escapedKeywords) . )/iu';
+            $compiledPatterns[$cacheKey] = $pattern;
+            
+            // الحد من حجم الذاكرة المؤقتة
+            if (count($compiledPatterns) > 100) {
+                array_shift($compiledPatterns);
             }
+        }
+        
+        $pattern = $compiledPatterns[$cacheKey];
+        
+        // البحث عن جميع التطابقات دفعة واحدة
+        if (preg_match_all($pattern, $textLower, $found)) {
+            $matches = array_unique($found[1]);
         }
         
         return $matches;

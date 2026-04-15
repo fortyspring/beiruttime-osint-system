@@ -221,19 +221,30 @@ class OSINT_Cache_Handler {
         switch ($this->backend) {
             case 'redis':
                 if ($this->redis) {
-                    $keys = $this->redis->keys($pattern);
+                    // Use SCAN instead of KEYS for better performance in production
+                    $iterator = null;
+                    $keys = [];
+                    
+                    while ($iterator !== false) {
+                        $result = $this->redis->scan($iterator, $pattern, 100);
+                        if ($result !== false && is_array($result)) {
+                            $keys = array_merge($keys, $result);
+                        }
+                    }
+                    
                     if (!empty($keys)) {
                         return $this->redis->del($keys) > 0;
                     }
+                    return true;
                 }
                 break;
                 
             case 'memcached':
-                // Memcached doesn't support pattern deletion, flush all (use with caution)
-                if ($this->memcached) {
-                    return $this->memcached->flush();
-                }
-                break;
+                // Memcached doesn't support pattern deletion
+                // Use a version key approach for logical clearing
+                $version_key = $this->prefix . $group . '_version';
+                $version = (int) $this->get($version_key) + 1;
+                return $this->set($version_key, $version, 86400 * 30);
                 
             default:
                 // WordPress doesn't support group clearing efficiently

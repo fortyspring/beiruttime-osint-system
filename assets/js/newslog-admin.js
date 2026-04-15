@@ -49,16 +49,41 @@ function nlUpdateStats(stats, total) {
     if (hybrid) hybrid.textContent = ((stats && stats.hybrid_ready) || 0).toLocaleString('ar');
 }
 
+// Debounce utility for performance
+let debounceTimers = {};
+function debounce(func, wait, context) {
+    return function() {
+        const args = arguments;
+        clearTimeout(debounceTimers[func.name || 'anon']);
+        debounceTimers[func.name || 'anon'] = setTimeout(() => {
+            func.apply(context || this, args);
+        }, wait);
+    };
+}
+
+// AbortController for cancelling requests
+let currentFetchRequest = null;
+
 function apiFetch(data) {
     if (!ajaxUrl) {
         return Promise.reject(new Error('ajaxurl missing'));
     }
+    
+    // Cancel previous request if still pending
+    if (currentFetchRequest) {
+        currentFetchRequest.abort();
+    }
+    
+    currentFetchRequest = new AbortController();
+    
     return fetch(ajaxUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(data),
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        signal: currentFetchRequest.signal
     }).then(function (r) {
+        currentFetchRequest = null;
         return r.text().then(function (text) {
             try {
                 return JSON.parse(text);
@@ -78,6 +103,13 @@ function apiFetch(data) {
                 throw new Error(text ? text.slice(0, 220) : ('HTTP ' + r.status));
             }
         });
+    }).catch(function(error) {
+        currentFetchRequest = null;
+        if (error.name === 'AbortError') {
+            // Request was cancelled, ignore
+            return null;
+        }
+        throw error;
     });
 }
 

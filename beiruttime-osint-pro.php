@@ -6620,7 +6620,7 @@ function sod_dashboard_route_enabled(): bool {
 
 function sod_dashboard_display_mode(): string {
     $mode = sanitize_key((string) get_option('sod_dashboard_display_mode', 'custom'));
-    return in_array($mode, ['powerbi', 'all', 'custom'], true) ? $mode : 'custom';
+    return in_array($mode, ['powerbi', 'custom'], true) ? $mode : 'custom';
 }
 
 function sod_dashboard_display_order(): string {
@@ -6645,69 +6645,28 @@ function sod_available_dashboard_panels(): array {
             'shortcode' => '[sod_command_deck hours="24" auto_refresh="60" theme="dark"]',
             'desc' => 'مركز القيادة الاستخباراتي',
         ],
-        'ticker' => [
-            'label' => 'Ticker',
-            'shortcode' => '[sod_ticker auto_refresh="15" min_score="120"]',
-            'desc' => 'شريط الأحداث الحرجة',
-        ],
-        'threat_analyzer' => [
-            'label' => 'Threat Analyzer',
-            'shortcode' => '[sod_threat_analyzer auto_refresh="60"]',
-            'desc' => 'محلل التهديدات الاستراتيجي',
-        ],
-        'osint_dashboard' => [
-            'label' => 'OSINT Dashboard',
-            'shortcode' => '[osint_dashboard]',
-            'desc' => 'لوحة القيادة الاحترافية الجديدة',
-        ],
-        'osint_map' => [
-            'label' => 'Interactive Map',
-            'shortcode' => '[osint_map]',
-            'desc' => 'الخريطة التفاعلية للساحات',
-        ],
-        'osint_command_center' => [
-            'label' => 'Command Center',
-            'shortcode' => '[osint_command_center]',
-            'desc' => 'اللوحة الاحترافية + الخريطة معاً',
-        ],
-        'osint_dashboard_panel' => [
-            'label' => 'Hybrid Warfare Dashboard',
-            'shortcode' => '[osint_dashboard_panel]',
-            'desc' => 'لوحة الحرب المركبة مع رادار التهديدات ومؤشر العلاقات',
-        ],
-        'hybrid_warfare_radar' => [
-            'label' => 'Hybrid Warfare Radar',
-            'shortcode' => '[hybrid_warfare_radar]',
-            'desc' => 'رادار تفاعلي للتهديدات المركبة',
-        ],
-        'actor_network_map' => [
-            'label' => 'Actor Network Map',
-            'shortcode' => '[actor_network_map]',
-            'desc' => 'شبكة العلاقات بين الدول والجماعات والوكلاء',
-        ],
     ];
 }
 
 function sod_dashboard_selected_panels(): array {
     $available = sod_available_dashboard_panels();
-    $allowed = ['powerbi','ticker','threat_analyzer','command_deck','osint_dashboard','osint_map','osint_command_center','osint_dashboard_panel','hybrid_warfare_radar','actor_network_map'];
-    $selected = get_option('sod_dashboard_selected_panels', ['powerbi','ticker','threat_analyzer']);
-    if (!is_array($selected)) $selected = ['powerbi','ticker','threat_analyzer'];
+    $allowed = ['powerbi','command_deck'];
+    $selected = get_option('sod_dashboard_selected_panels', ['powerbi','command_deck']);
+    if (!is_array($selected)) $selected = ['powerbi','command_deck'];
     $selected = array_values(array_filter(array_map('sanitize_key', $selected), function($key) use ($available){
         return isset($available[$key]);
     }));
     $selected = array_values(array_filter($selected, function($key) use ($allowed){
         return in_array($key, $allowed, true);
     }));
-    if (empty($selected)) $selected = ['powerbi','ticker','threat_analyzer'];
+    if (empty($selected)) $selected = ['powerbi','command_deck'];
     return $selected;
 }
 
 function sod_get_dashboard_route_shortcodes(): array {
     $available = sod_available_dashboard_panels();
     $powerbi = $available['powerbi']['shortcode'];
-    $ticker = $available['ticker']['shortcode'];
-    $threat = $available['threat_analyzer']['shortcode'];
+    $command_deck = $available['command_deck']['shortcode'];
     $mode = sod_dashboard_display_mode();
     $selected = sod_dashboard_selected_panels();
 
@@ -6719,11 +6678,11 @@ function sod_get_dashboard_route_shortcodes(): array {
             }
         }
         if (!empty($parts)) return $parts;
-        return [$powerbi, $ticker, $threat];
+        return [$powerbi, $command_deck];
     }
 
     if ($mode === 'powerbi') return [$powerbi];
-    return [$powerbi, $ticker, $threat];
+    return [$powerbi, $command_deck];
 }
 
 function sod_render_dashboard_route_content(): string {
@@ -6839,7 +6798,6 @@ add_action('template_redirect', function () {
     $mode_label_map = [
         'powerbi' => 'PowerBI',
         'command_deck' => 'Command Deck',
-        'all' => 'All Dashboards',
         'custom' => 'Custom Dashboards',
     ];
     $mode = sod_dashboard_display_mode();
@@ -16394,10 +16352,11 @@ add_shortcode('osint_map', function(){
     return ob_get_clean();
 });
 
-// لوحة موحدة: القيادة + الخريطة
-add_shortcode('osint_command_center', function(){
-    return do_shortcode('[osint_dashboard_panel]') . do_shortcode('[osint_map]');
-});
+// إزالة الشورت كودات المعطلة
+remove_shortcode('osint_map');
+remove_shortcode('osint_command_center');
+remove_shortcode('osint_dashboard_main');
+remove_shortcode('osint_dashboard');
 
 
 
@@ -16477,13 +16436,9 @@ function sod_ajax_bt_reindex_batch() {
 
 
 
-// Aliases واضحة للشورت كود
-add_shortcode('osint_dashboard_main', function(){
-    return do_shortcode('[osint_command_center]');
-});
-add_shortcode('osint_dashboard', function(){
-    return do_shortcode('[osint_command_center]');
-});
+// Aliases واضحة للشورت كود - معطلة
+// remove_shortcode('osint_dashboard_main');
+// remove_shortcode('osint_dashboard');
 
 function sod_prune_legacy_dashboard_shortcodes(): void {
     foreach ([

@@ -4537,6 +4537,90 @@ function sod_verify_nonce(): bool {
 }
 
 // ==========================================================================
+// كلاسات الأمان المساعدة - Security Helper Classes
+// ==========================================================================
+
+if (!class_exists('SOD_Rate_Limiter')) {
+class SOD_Rate_Limiter {
+    private static $instance = null;
+    private $transient_prefix = 'sod_rate_limit_';
+    private $limits = [
+        'ajax' => ['requests' => 60, 'seconds' => 60],
+        'dashboard' => ['requests' => 30, 'seconds' => 60],
+        'reanalyze' => ['requests' => 5, 'seconds' => 60],
+    ];
+
+    private function __construct() {}
+
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    public function check_rate_limit($context = 'ajax') {
+        $limit = $this->limits[$context] ?? $this->limits['ajax'];
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $key = $this->transient_prefix . md5($ip . '_' . $context);
+        $data = get_transient($key);
+        
+        if ($data === false) {
+            $data = ['count' => 0, 'reset' => time() + $limit['seconds']];
+        }
+
+        $data['count']++;
+        set_transient($key, $data, $limit['seconds']);
+
+        if ($data['count'] > $limit['requests']) {
+            return new WP_Error('rate_limit_exceeded', 'تم تجاوز حد الطلبات المسموح. يرجى الانتظار.');
+        }
+
+        return true;
+    }
+}
+}
+
+if (!class_exists('SOD_Security_Logger')) {
+class SOD_Security_Logger {
+    private static $instance = null;
+    private $log_table = '';
+
+    private function __construct() {
+        global $wpdb;
+        $this->log_table = $wpdb->prefix . 'so_security_log';
+    }
+
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    public function log_rate_limit_exceeded($action, $context) {
+        error_log(sprintf('[SOD Security] Rate limit exceeded: %s in %s by %s', 
+            $action, $context, $_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+    }
+
+    public function log_unauthorized_access($action, $details = []) {
+        error_log(sprintf('[SOD Security] Unauthorized access: %s - %s', 
+            $action, json_encode($details)));
+    }
+}
+}
+
+function sod_verify_ajax_nonce($nonce) {
+    if (empty($nonce)) {
+        return new WP_Error('missing_nonce', 'Missing security nonce');
+    }
+    if (!wp_verify_nonce($nonce, SOD_AJAX_NONCE_ACTION)) {
+        return new WP_Error('invalid_nonce', 'Invalid security nonce');
+    }
+    return true;
+}
+
+// ==========================================================================
 // ==========================================================================
 // 15. AJAX Handlers (V12 + V13 combined) - محدث للزوار غير المسجلين
 // ==========================================================================

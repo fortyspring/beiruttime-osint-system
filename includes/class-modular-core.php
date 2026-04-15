@@ -13,12 +13,23 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Define plugin constants if not already defined
+if (!defined('OSINT_PRO_PLUGIN_DIR')) {
+    define('OSINT_PRO_PLUGIN_DIR', dirname(dirname(__FILE__)));
+}
+
+if (!defined('OSINT_PRO_PLUGIN_URL')) {
+    define('OSINT_PRO_PLUGIN_URL', plugin_dir_url(dirname(dirname(__FILE__))));
+}
+
 class OSINT_Modular_Core {
     
     private static $instance = null;
     private $modules = array();
     private $cache_handler = null;
     private $websocket_handler = null;
+    private $handlers = array();
+    private $services = array();
     
     /**
      * Get singleton instance
@@ -35,6 +46,7 @@ class OSINT_Modular_Core {
      */
     public function __construct() {
         $this->load_dependencies();
+        $this->load_modular_components();
         $this->init_cache();
         $this->init_modules();
         $this->init_websocket();
@@ -50,16 +62,71 @@ class OSINT_Modular_Core {
             'websocket/class-websocket-handler.php',
             'modules/class-module-interface.php',
             'modules/class-base-module.php',
-            'handlers/class-data-handler.php',
-            'handlers/class-api-handler.php',
-            'services/class-telegram-service.php',
-            'services/class-analysis-service.php',
         );
         
         foreach ($files as $file) {
-            $path = OSINT_PRO_PLUGIN_DIR . 'includes/' . $file;
+            $path = OSINT_PRO_PLUGIN_DIR . '/includes/' . $file;
             if (file_exists($path)) {
                 require_once $path;
+            }
+        }
+    }
+    
+    /**
+     * Load modular components (handlers, services, modules)
+     */
+    private function load_modular_components() {
+        // Load handlers
+        $handler_files = array(
+            'data-handler' => 'modular/handlers/class-data-handler.php',
+            'api-handler' => 'modular/handlers/class-api-handler.php',
+        );
+        
+        foreach ($handler_files as $key => $file) {
+            $path = OSINT_PRO_PLUGIN_DIR . '/includes/' . $file;
+            if (file_exists($path)) {
+                require_once $path;
+                $class_name = 'SOD_' . str_replace('-', '_', $key);
+                if (class_exists($class_name)) {
+                    $this->handlers[$key] = call_user_func([$class_name, 'get_instance']);
+                }
+            }
+        }
+        
+        // Load services
+        $service_files = array(
+            'telegram-service' => 'modular/services/class-telegram-service.php',
+            'analysis-service' => 'modular/services/class-analysis-service.php',
+        );
+        
+        foreach ($service_files as $key => $file) {
+            $path = OSINT_PRO_PLUGIN_DIR . '/includes/' . $file;
+            if (file_exists($path)) {
+                require_once $path;
+                $class_name = 'SOD_' . str_replace('-', '_', $key);
+                if (class_exists($class_name)) {
+                    $this->services[$key] = call_user_func([$class_name, 'get_instance']);
+                }
+            }
+        }
+        
+        // Load modules
+        $module_files = array(
+            'dashboard-module' => 'modular/modules/class-dashboard-module.php',
+            'map-module' => 'modular/modules/class-map-module.php',
+            'chart-module' => 'modular/modules/class-chart-module.php',
+            'analysis-module' => 'modular/modules/class-analysis-module.php',
+            'export-module' => 'modular/modules/class-export-module.php',
+        );
+        
+        foreach ($module_files as $key => $file) {
+            $path = OSINT_PRO_PLUGIN_DIR . '/includes/' . $file;
+            if (file_exists($path)) {
+                require_once $path;
+                $class_name = 'OSINT_' . str_replace('-', '_', $key);
+                if (class_exists($class_name)) {
+                    $this->modules[$key] = call_user_func([$class_name, 'get_instance']);
+                }
             }
         }
     }
@@ -74,26 +141,12 @@ class OSINT_Modular_Core {
     }
     
     /**
-     * Initialize modules
+     * Initialize additional modules (legacy support)
      */
     private function init_modules() {
-        $module_classes = array(
-            'OSINT_Dashboard_Module',
-            'OSINT_Map_Module',
-            'OSINT_Chart_Module',
-            'OSINT_Analysis_Module',
-            'OSINT_Export_Module',
-        );
-        
-        foreach ($module_classes as $class) {
-            if (class_exists($class)) {
-                $module = new $class($this);
-                if ($module->is_active()) {
-                    $this->modules[$module->get_id()] = $module;
-                    $module->init();
-                }
-            }
-        }
+        // Modules are now loaded in load_modular_components()
+        // This method kept for backward compatibility
+        do_action('osint_pro_modules_initialized', $this->modules);
     }
     
     /**
@@ -110,13 +163,57 @@ class OSINT_Modular_Core {
      */
     private function register_hooks() {
         add_action('wp_ajax_osint_module_action', array($this, 'handle_module_ajax'));
-        add_action('wp_ajax_nopriv_osint_module_action', array($this, 'handle_module_ajax'));
+        add_action('admin_init', array($this, 'check_dependencies'));
+        add_filter('plugin_action_links', array($this, 'add_action_links'), 10, 2);
         
         // Cache clearing on post update
         add_action('save_post', array($this, 'clear_related_cache'));
         
         // Shutdown hook for performance
         add_action('shutdown', array($this, 'cleanup'));
+    }
+    
+    /**
+     * Check system dependencies
+     */
+    public function check_dependencies() {
+        $missing = array();
+        
+        // Check PHP version
+        if (version_compare(PHP_VERSION, '7.4', '<')) {
+            $missing[] = 'PHP 7.4 or higher';
+        }
+        
+        // Check WordPress version
+        global $wp_version;
+        if (version_compare($wp_version, '5.8', '<')) {
+            $missing[] = 'WordPress 5.8 or higher';
+        }
+        
+        // Check required extensions
+        if (!extension_loaded('json')) {
+            $missing[] = 'JSON extension';
+        }
+        
+        if (!empty($missing)) {
+            add_action('admin_notices', function() use ($missing) {
+                echo '<div class="notice notice-error"><p><strong>OSINT Pro:</strong> Missing dependencies: ' . implode(', ', $missing) . '</p></div>';
+            });
+        }
+    }
+    
+    /**
+     * Add plugin action links
+     */
+    public function add_action_links($links, $file) {
+        if (strpos($file, 'osint-pro') !== false || strpos($file, 'beirut-time-osint') !== false) {
+            $custom_links = array(
+                '<a href="' . admin_url('admin.php?page=osint-pro-dashboard') . '">Dashboard</a>',
+                '<a href="' . admin_url('admin.php?page=osint-pro-settings') . '">Settings</a>'
+            );
+            $links = array_merge($custom_links, $links);
+        }
+        return $links;
     }
     
     /**
@@ -176,6 +273,20 @@ class OSINT_Modular_Core {
     }
     
     /**
+     * Get all handlers
+     */
+    public function get_handlers() {
+        return $this->handlers;
+    }
+    
+    /**
+     * Get all services
+     */
+    public function get_services() {
+        return $this->services;
+    }
+    
+    /**
      * Get cache handler
      */
     public function get_cache() {
@@ -187,6 +298,20 @@ class OSINT_Modular_Core {
      */
     public function get_websocket() {
         return $this->websocket_handler;
+    }
+    
+    /**
+     * Get system status
+     */
+    public function get_system_status() {
+        return array(
+            'handlers' => array_keys($this->handlers),
+            'services' => array_keys($this->services),
+            'modules' => array_keys($this->modules),
+            'cache_active' => $this->cache_handler !== null,
+            'websocket_active' => $this->websocket_handler !== null,
+            'total_components' => count($this->handlers) + count($this->services) + count($this->modules)
+        );
     }
 }
 

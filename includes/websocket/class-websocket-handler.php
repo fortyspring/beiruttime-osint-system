@@ -1,6 +1,6 @@
 <?php
 /**
- * WebSocket Handler for Real-time Updates
+ * WebSocket Handler for Real-time Updates - Core Functionality
  * 
  * Provides WebSocket support for real-time OSINT data updates.
  * Uses Ratchet library or falls back to Server-Sent Events (SSE).
@@ -313,30 +313,4 @@ class OSINT_WebSocket_Handler {
         // Implementation depends on server setup
         error_log('[OSINT] WebSocket broadcast to ' . $channel . ': ' . json_encode($data));
     }
-    
-    /**
-     * Enqueue frontend scripts for real-time updates
-     */
-    public function enqueue_scripts() {
-        wp_enqueue_script(
-            'osint-realtime',
-            OSINT_PRO_PLUGIN_URL . 'assets/js/modules/realtime.js',
-            array('jquery'),
-            OSINT_PRO_VERSION,
-            true
-        );
-        
-        wp_localize_script('osint-realtime', 'osintRealtimeConfig', array(
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('osint_nonce'),
-            'websocketUrl' => $this->websocket_url,
-            'sseEnabled' => $this->sse_enabled,
-            'reconnectInterval' => 5000,
-        ));
-    }
 }
-
-// Initialize WebSocket handler early
-add_action('plugins_loaded', function() {
-    OSINT_WebSocket_Handler::get_instance();
-}, 10);

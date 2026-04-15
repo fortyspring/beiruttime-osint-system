@@ -9189,6 +9189,11 @@ class SO_Admin_UI {
         add_action('wp_ajax_so_manual_sync', 'so_ajax_manual_sync_v2');
         add_action('wp_ajax_so_test_telegram', [__CLASS__, 'ajax_test_telegram']);
         add_action('wp_ajax_so_test_discord', [__CLASS__, 'ajax_test_discord']);
+        add_action('wp_ajax_so_ajax_db_stats', [__CLASS__, 'ajax_db_stats']);
+        add_action('wp_ajax_so_ajax_reanalyze_batch', [__CLASS__, 'ajax_reanalyze_batch']);
+        add_action('wp_ajax_so_ajax_reanalyze_reset', [__CLASS__, 'ajax_reanalyze_reset']);
+        add_action('wp_ajax_so_ajax_duplicate_cleanup_batch', [__CLASS__, 'ajax_duplicate_cleanup_batch']);
+        add_action('wp_ajax_so_ajax_duplicate_cleanup_reset', [__CLASS__, 'ajax_duplicate_cleanup_reset']);
     }
 
     public static function enqueue_admin_assets($hook) {
@@ -11427,8 +11432,33 @@ public static function ajax_duplicate_cleanup_reset() {
     wp_send_json_success(['reset' => 1, 'total' => $total]);
 }
 
+/**
+ * AJAX: جلب إحصائيات قاعدة البيانات للوحات المؤشرات
+ */
+public static function ajax_db_stats() {
+    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
+    check_ajax_referer('so_ajax_v13', 'nonce');
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'so_news_events';
+    
+    $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+    $updated = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE intel_type != '' AND intel_type IS NOT NULL");
+    $locked = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE manual_override = 1");
+    $pending = $total - $updated;
+    
+    wp_send_json_success([
+        'total' => $total,
+        'updated' => $updated,
+        'locked' => $locked,
+        'pending' => $pending,
+        'percent' => $total > 0 ? round(($updated / $total) * 100) : 0,
+    ]);
+}
 
-
+/**
+ * AJAX: معالجة دفعة من إعادة التحليل
+ */
 public static function ajax_reanalyze_batch() {
     if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
     check_ajax_referer('so_ajax_v13', 'nonce');
@@ -11440,6 +11470,9 @@ public static function ajax_reanalyze_batch() {
     wp_send_json_success($progress);
 }
 
+/**
+ * AJAX: تصفير مؤشر إعادة التحليل
+ */
 public static function ajax_reanalyze_reset() {
     if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
     check_ajax_referer('so_ajax_v13', 'nonce');
@@ -11462,6 +11495,101 @@ public static function ajax_reanalyze_reset() {
     ], false);
 
     wp_send_json_success(['reset' => 1, 'total' => $total, 'batch' => 10]);
+}
+
+/**
+ * AJAX: معالجة دفعة تنظيف المكرر
+ */
+public static function ajax_duplicate_cleanup_batch() {
+    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
+    check_ajax_referer('so_ajax_v13', 'nonce');
+    
+    $batch = isset($_POST['batch']) ? max(5, min(500, intval($_POST['batch']))) : 50;
+    $reset = !empty($_POST['reset']);
+    
+    if ($reset) {
+        delete_option('so_duplicate_cleanup_cursor');
+        delete_option('so_duplicate_cleanup_running');
+    }
+    
+    $cursor = (int)get_option('so_duplicate_cleanup_cursor', 0);
+    $running = (int)get_option('so_duplicate_cleanup_running', 0);
+    
+    if ($running && !$reset) {
+        $progress = get_option('so_duplicate_cleanup_progress', []);
+        wp_send_json_success($progress);
+    }
+    
+    update_option('so_duplicate_cleanup_running', 1, false);
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'so_news_events';
+    $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+    
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, title FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d",
+        $batch, $cursor
+    ), ARRAY_A);
+    
+    $deleted = 0;
+    $seen_titles = [];
+    
+    foreach ($rows as $row) {
+        $title = trim((string)($row['title'] ?? ''));
+        if ($title === '') continue;
+        
+        $normalized = sanitize_title($title);
+        if (isset($seen_titles[$normalized])) {
+            $wpdb->delete($table, ['id' => (int)$row['id']]);
+            $deleted++;
+        } else {
+            $seen_titles[$normalized] = true;
+        }
+    }
+    
+    $next_cursor = $cursor + count($rows);
+    $done = $next_cursor >= $total;
+    
+    $processed = min($next_cursor, $total);
+    $prev_progress = get_option('so_duplicate_cleanup_progress', []);
+    $prev_deleted = (int)($prev_progress['deleted_total'] ?? 0);
+    
+    $progress = [
+        'time' => time(),
+        'batch' => $batch,
+        'processed' => $processed,
+        'total' => $total,
+        'percent' => $total > 0 ? round(($processed / $total) * 100) : 100,
+        'deleted' => $deleted,
+        'deleted_total' => $prev_deleted + $deleted,
+        'done' => $done ? 1 : 0,
+        'next_cursor' => $done ? 0 : $next_cursor,
+        'running' => $done ? 0 : 1,
+    ];
+    
+    update_option('so_duplicate_cleanup_cursor', $done ? 0 : $next_cursor, false);
+    update_option('so_duplicate_cleanup_running', $done ? 0 : 1, false);
+    update_option('so_duplicate_cleanup_progress', $progress, false);
+    
+    wp_send_json_success($progress);
+}
+
+/**
+ * AJAX: تصفير مؤشر تنظيف المكرر
+ */
+public static function ajax_duplicate_cleanup_reset() {
+    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
+    check_ajax_referer('so_ajax_v13', 'nonce');
+    
+    delete_option('so_duplicate_cleanup_cursor');
+    delete_option('so_duplicate_cleanup_running');
+    delete_option('so_duplicate_cleanup_progress');
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'so_news_events';
+    $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+    
+    wp_send_json_success(['reset' => 1, 'total' => $total]);
 }
 
 
@@ -15967,19 +16095,6 @@ function so_lebanon_district_centroids() {
 
 
 
-
-
-add_action('wp_ajax_so_ajax_duplicate_cleanup_batch', ['SO_Admin_UI', 'ajax_duplicate_cleanup_batch']);
-add_action('wp_ajax_so_ajax_duplicate_cleanup_reset', ['SO_Admin_UI', 'ajax_duplicate_cleanup_reset']);
-
-// إعادة التحليل الكامل - AJAX Handlers
-add_action('wp_ajax_so_ajax_reanalyze_batch', ['SO_Admin_UI', 'ajax_reanalyze_batch']);
-add_action('wp_ajax_so_ajax_reanalyze_reset', ['SO_Admin_UI', 'ajax_reanalyze_reset']);
-
-// NewsLog AJAX Handlers
-add_action('wp_ajax_sod_newslog_search', 'sod_ajax_newslog_search');
-add_action('wp_ajax_sod_newslog_save', 'sod_ajax_newslog_save');
-add_action('wp_ajax_sod_newslog_reclassify', 'sod_ajax_newslog_reclassify');
 add_action('wp_ajax_sod_newslog_bulk', 'sod_ajax_newslog_bulk');
 add_action('wp_ajax_sod_newslog_get_banks', 'sod_ajax_newslog_get_banks');
 add_action('wp_ajax_sod_newslog_add_to_bank', 'sod_ajax_newslog_add_to_bank');

@@ -5,6 +5,57 @@ const nonce = cfg.nonce || '';
 const REQUEST_TIMEOUT_MS = 20000;
 const MIN_REANALYZE_BATCH = 5;
 
+// تهيئة لوحات المؤشرات عند التحميل
+function initDashboardCharts() {
+    const statsContainer = document.getElementById('so-db-stats-container');
+    if (!statsContainer) return;
+    
+    // جلب الإحصائيات وعرضها
+    fetchStats().then(function(stats) {
+        renderStats(stats);
+    }).catch(function(err) {
+        console.error('فشل تحميل الإحصائيات:', err);
+        statsContainer.innerHTML = '<div class="notice notice-error"><p>تعذر تحميل إحصائيات قاعدة البيانات</p></div>';
+    });
+}
+
+function fetchStats() {
+    return post('so_ajax_db_stats', {}).then(function(res) {
+        if (!res || !res.success) throw new Error('fetch_failed');
+        return res.data || {};
+    });
+}
+
+function renderStats(stats) {
+    const container = document.getElementById('so-db-stats-container');
+    if (!container) return;
+    
+    const total = stats.total || 0;
+    const updated = stats.updated || 0;
+    const percent = total > 0 ? Math.round((updated / total) * 100) : 0;
+    
+    container.innerHTML = `
+        <div class="so-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin:20px 0;">
+            <div class="so-stat-card" style="background:#1e293b;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:2em;color:#60a5fa;font-weight:bold;">${total}</div>
+                <div style="color:#94a3b8;margin-top:5px;">إجمالي الأحداث</div>
+            </div>
+            <div class="so-stat-card" style="background:#1e293b;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:2em;color:#34d399;font-weight:bold;">${updated}</div>
+                <div style="color:#94a3b8;margin-top:5px;">المحدّثة</div>
+            </div>
+            <div class="so-stat-card" style="background:#1e293b;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:2em;color:#fbbf24;font-weight:bold;">${percent}%</div>
+                <div style="color:#94a3b8;margin-top:5px;">نسبة التحديث</div>
+            </div>
+            <div class="so-stat-card" style="background:#1e293b;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:2em;color:#f87171;font-weight:bold;">${stats.locked || 0}</div>
+                <div style="color:#94a3b8;margin-top:5px;">مقفلة يدوياً</div>
+            </div>
+        </div>
+    `;
+}
+
 function post(action, extra) {
     if (!ajaxUrl) {
         return Promise.reject(new Error('missing_ajax_url'));
@@ -261,6 +312,7 @@ function initReanalyze() {
 }
 
 function boot() {
+    initDashboardCharts();
     initDuplicateCleanup();
     initReanalyze();
     const legacyBtn = document.querySelector('button[name="so_run_reanalyze_all"]');

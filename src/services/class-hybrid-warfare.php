@@ -151,11 +151,12 @@ class HybridWarfareEngine {
         
         foreach ($this->hybridLayers as $layerKey => $layerData) {
             $score = $this->calculateLayerScore($text, $layerData);
-            if ($score > 0.1) {
+            $score = $this->applyContextualBoosts($layerKey, $score, $text, $event);
+            if ($score > 0.03) {
                 $layers[$layerKey] = [
                     'id' => $layerData['id'],
                     'name_ar' => $layerData['name_ar'],
-                    'score' => round($score, 3),
+                    'score' => round(min(1.0, $score), 3),
                     'matches' => $this->findMatches($text, $layerData['keywords']),
                     'weight' => $layerData['weight']
                 ];
@@ -181,12 +182,61 @@ class HybridWarfareEngine {
      */
     private function extractText(array $event): string {
         $parts = [];
-        foreach (['title', 'description', 'content', 'summary'] as $field) {
+        foreach (['title', 'description', 'content', 'summary', 'source', 'actor', 'actor_v2', 'region', 'intel_type', 'tactical_level'] as $field) {
             if (!empty($event[$field]) && is_string($event[$field])) {
                 $parts[] = $event[$field];
             }
         }
         return implode(' ', $parts);
+    }
+
+    /**
+     * رفع ذكي لدرجات بعض الطبقات بحسب السياق
+     */
+    private function applyContextualBoosts(string $layerKey, float $score, string $text, array $event): float {
+        $textLower = mb_strtolower($text, 'UTF-8');
+        $actor = mb_strtolower((string)($event['actor'] ?? $event['actor_v2'] ?? ''), 'UTF-8');
+        $region = mb_strtolower((string)($event['region'] ?? ''), 'UTF-8');
+
+        $has = function(array $terms) use ($textLower): bool {
+            foreach ($terms as $term) {
+                if (mb_strpos($textLower, mb_strtolower($term, 'UTF-8')) !== false) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if ($layerKey === 'military' && $has(['غارة','قصف','استهداف','صاروخ','مسيرة','توغل','اعتراض'])) {
+            $score += 0.18;
+        }
+        if ($layerKey === 'security' && $has(['إنذار','تحذير','اعتقال','مخابرات','خلية','تسلل'])) {
+            $score += 0.14;
+        }
+        if ($layerKey === 'political' && $has(['الخارجية','وزارة','مباحثات','سفير','تصريح','دعم بكين','مجلس الأمن'])) {
+            $score += 0.16;
+        }
+        if ($layerKey === 'economic' && $has(['عقوبات','نفط','غاز','مصفاة','تجارة','ميناء','تصدير','استيراد'])) {
+            $score += 0.14;
+        }
+        if ($layerKey === 'media_psychological' && $has(['الإعلام الحربي','بيان','رواية','تحريض','حرب نفسية','رسالة','منشور'])) {
+            $score += 0.15;
+        }
+        if ($layerKey === 'energy' && $has(['محطة','كهرباء','مصفاة','مفاعل','وقود','خط الغاز','خزان'])) {
+            $score += 0.12;
+        }
+        if ($layerKey === 'geostrategic' && $has(['هرمز','باب المندب','المجال الجوي','قاعدة','حدود','ممر','مضيق'])) {
+            $score += 0.17;
+        }
+
+        if ($region !== '' && ($region === 'لبنان' || $region === 'فلسطين' || $region === 'إيران' || $region === 'سوريا')) {
+            $score += 0.03;
+        }
+        if ($actor !== '' && ($actor === 'جيش العدو الإسرائيلي' || $actor === 'إيران' || mb_strpos($actor, 'حزب الله') !== false)) {
+            $score += 0.03;
+        }
+
+        return min(1.0, $score);
     }
 
     /**

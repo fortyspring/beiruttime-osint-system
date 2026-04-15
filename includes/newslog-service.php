@@ -127,6 +127,90 @@ function sod_attach_manual_override_state(array $row, array $update, array $fiel
     return $update;
 }
 
+function sod_newslog_normalize_layers($raw): array {
+    if (function_exists('sod_normalize_hybrid_layers_value')) {
+        $normalized = sod_normalize_hybrid_layers_value($raw);
+        if (!empty($normalized)) {
+            return array_values(array_unique(array_filter(array_map('strval', $normalized))));
+        }
+    }
+
+    $layers = [];
+    if (is_array($raw)) {
+        $layers = $raw;
+    } elseif (is_string($raw)) {
+        $raw = trim($raw);
+        if ($raw === '' || $raw === '0' || $raw === '[]' || $raw === '{}') {
+            return [];
+        }
+        $tmp = json_decode($raw, true);
+        if (is_array($tmp)) {
+            $layers = $tmp;
+        } else {
+            $layers = preg_split('/[,|]+/u', $raw);
+        }
+    }
+
+    $map = [
+        'عسكري'=>'عسكري','العسكرية'=>'عسكري','military'=>'عسكري',
+        'أمني'=>'أمني','امني'=>'أمني','security'=>'أمني',
+        'سياسي'=>'سياسي','political'=>'سياسي',
+        'اقتصادي'=>'اقتصادي','economic'=>'اقتصادي',
+        'إعلامي/نفسي'=>'إعلامي/نفسي','إعلامي نفسي'=>'إعلامي/نفسي','media_psychological'=>'إعلامي/نفسي',
+        'سيبراني/تقني'=>'سيبراني/تقني','cyber'=>'سيبراني/تقني',
+        'طاقة'=>'طاقة','energy'=>'طاقة',
+        'جيوستراتيجي'=>'جيوستراتيجي','geostrategic'=>'جيوستراتيجي',
+        'اجتماعي'=>'اجتماعي','social'=>'اجتماعي',
+    ];
+
+    $out = [];
+    foreach ((array)$layers as $k => $layer) {
+        if (is_array($layer)) {
+            $layer = $layer['name'] ?? $layer['label'] ?? $layer['layer'] ?? '';
+        } elseif (!is_numeric($k) && !is_array($layer) && (is_bool($layer) || is_int($layer) || is_float($layer))) {
+            if ((int)$layer === 0) {
+                continue;
+            }
+            $layer = (string)$k;
+        }
+
+        $layer = trim((string)$layer);
+        if ($layer === '' || $layer === '0') continue;
+        $key = function_exists('mb_strtolower') ? mb_strtolower($layer) : strtolower($layer);
+        $norm = $map[$layer] ?? $map[$key] ?? $layer;
+        $out[$norm] = true;
+    }
+    return array_keys($out);
+}
+
+function sod_newslog_state_meta(array $row): array {
+    $wd = sod_parse_json_array($row['war_data'] ?? '');
+    $fd = sod_parse_json_array($row['field_data'] ?? '');
+    $hybrid = $row['hybrid_layers'] ?? ($wd['hybrid_layers'] ?? ($fd['hybrid_layers'] ?? []));
+    $layers = sod_newslog_normalize_layers($hybrid);
+    $manual = sod_get_manual_override_state($row);
+    $eval = [];
+    if (!empty($fd['evaluation_meta']) && is_array($fd['evaluation_meta'])) $eval = $fd['evaluation_meta'];
+    if (!empty($wd['evaluation_mode'])) $eval['mode'] = (string)$wd['evaluation_mode'];
+    if (!empty($wd['evaluation_label'])) $eval['label'] = (string)$wd['evaluation_label'];
+    if (!empty($wd['evaluated_at'])) $eval['at'] = (int)$wd['evaluated_at'];
+    $mode = (string)($eval['mode'] ?? ($manual['enabled'] ? 'manual_override' : 'auto'));
+    $label = (string)($eval['label'] ?? ($manual['enabled'] ? 'يدوي مقفل' : 'آلي'));
+    $at = (int)($eval['at'] ?? 0);
+    $reindexed_at = (int)($wd['reindexed_at'] ?? ($fd['reindexed_at'] ?? 0));
+    return [
+        'hybrid_layers' => $layers,
+        'hybrid_count' => count($layers),
+        'manual_locked' => !empty($manual['enabled']),
+        'manual_fields' => array_keys($manual['fields'] ?? []),
+        'manual_updated_at' => (int)($manual['updated_at'] ?? 0),
+        'evaluation_mode' => $mode,
+        'evaluation_label' => $label,
+        'evaluated_at' => $at,
+        'reindexed_at' => $reindexed_at,
+    ];
+}
+
 function sod_newslog_extract_classification_fields(array $row): array {
     $wd = sod_parse_json_array($row['war_data'] ?? '');
     return [
@@ -156,6 +240,9 @@ function sod_ajax_newslog_search(): void {
     $actor = sanitize_text_field(wp_unslash($_POST['actor'] ?? ''));
     $type = sanitize_text_field(wp_unslash($_POST['intel_type'] ?? ''));
     $score = (int)($_POST['score'] ?? 0);
+    $eval_filter = sanitize_text_field(wp_unslash($_POST['evaluation_state'] ?? ''));
+    $manual_filter = sanitize_text_field(wp_unslash($_POST['manual_state'] ?? ''));
+    $hybrid_filter = sanitize_text_field(wp_unslash($_POST['hybrid_state'] ?? ''));
     $page = max(1, (int)($_POST['page'] ?? 1));
     $per = min(200, max(10, (int)($_POST['per_page'] ?? 25)));
     $offset = ($page - 1) * $per;
@@ -165,9 +252,16 @@ function sod_ajax_newslog_search(): void {
     if ($actor) { $where[] = 'actor_v2 = %s'; $params[] = $actor; }
     if ($type) { $where[] = 'intel_type = %s'; $params[] = $type; }
     if ($score > 0) { $where[] = 'score >= %d'; $params[] = $score; }
+    if ($manual_filter === 'locked') { $where[] = "(war_data LIKE '%\"manual_override\":%' OR field_data LIKE '%\"manual_override\":%')"; }
+    elseif ($manual_filter === 'unlocked') { $where[] = "(war_data NOT LIKE '%\"manual_override\":%' AND field_data NOT LIKE '%\"manual_override\":%')"; }
+    if ($eval_filter === 'manual_override') { $where[] = "(war_data LIKE '%\"evaluation_mode\":\"manual_override\"%' OR field_data LIKE '%\"manual_override\":%')"; }
+    elseif ($eval_filter === 'manual_saved') { $where[] = "(war_data LIKE '%\"evaluation_mode\":\"manual_saved\"%' OR field_data LIKE '%\"mode\":\"manual_saved\"%')"; }
+    elseif ($eval_filter === 'auto') { $where[] = "(war_data LIKE '%\"evaluation_mode\":\"auto\"%' OR field_data LIKE '%\"mode\":\"auto\"%')"; }
+    if ($hybrid_filter === 'yes') { $where[] = "((hybrid_layers IS NOT NULL AND hybrid_layers <> '' AND hybrid_layers <> '[]') OR war_data LIKE '%\"hybrid_layers\":%' OR field_data LIKE '%\"hybrid_layers\":%')"; }
+    elseif ($hybrid_filter === 'no') { $where[] = "((hybrid_layers IS NULL OR hybrid_layers = '' OR hybrid_layers = '[]') AND war_data NOT LIKE '%\"hybrid_layers\":%' AND field_data NOT LIKE '%\"hybrid_layers\":%')"; }
     $clause = implode(' AND ', $where);
     $count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$clause}";
-    $data_sql = "SELECT id,title,link,source_name,source_color,intel_type,tactical_level,region,actor_v2,score,status,event_timestamp,war_data,field_data,weapon_v2,target_v2,context_actor,intent,title_fingerprint FROM {$table} WHERE {$clause} ORDER BY event_timestamp DESC LIMIT %d OFFSET %d";
+    $data_sql = "SELECT id,title,link,source_name,source_color,intel_type,tactical_level,region,actor_v2,score,status,event_timestamp,war_data,field_data,weapon_v2,target_v2,context_actor,intent,title_fingerprint,hybrid_layers FROM {$table} WHERE {$clause} ORDER BY event_timestamp DESC LIMIT %d OFFSET %d";
     $unknown_actor_values = ['','غير محدد','عام/مجهول','فاعل غير محسوم','فاعل قيد التقييم','جهة غير معلنة','فاعل سياقي','فاعل سياقي غير مباشر'];
     $total = $params ? (int)$wpdb->get_var($wpdb->prepare($count_sql, ...$params)) : (int)$wpdb->get_var($count_sql);
     $rows = $wpdb->prepare($data_sql, ...array_merge($params, [$per, $offset]));
@@ -183,16 +277,22 @@ function sod_ajax_newslog_search(): void {
             $lrows = $wpdb->get_col($wpdb->prepare("SELECT title_fingerprint FROM {$lrn_tbl} WHERE title_fingerprint IN ({$ph})", ...$fps));
             $learned = array_flip($lrows);
         }
+        $manual_locked_count = 0;
+        $hybrid_ready_count = 0;
         foreach ($items as &$it) {
             $it['has_learning'] = isset($learned[$it['title_fingerprint'] ?? '']);
             $normalized = sod_newslog_extract_classification_fields($it);
+            $state_meta = sod_newslog_state_meta($it);
             $it['score'] = (int)$normalized['score'];
             $it['event_timestamp'] = (int)$it['event_timestamp'];
             $wd = (array)$normalized['war_data'];
             $manual_state = sod_get_manual_override_state(['war_data'=>wp_json_encode($wd, JSON_UNESCAPED_UNICODE), 'field_data'=>(string)($it['field_data'] ?? '')]);
             $it['has_manual_override'] = !empty($manual_state['enabled']);
-            $it['evaluation_mode'] = (string)($wd['evaluation_mode'] ?? (!empty($manual_state['enabled']) ? 'manual_override' : 'auto'));
-            $it['evaluation_label'] = (string)($wd['evaluation_label'] ?? (!empty($manual_state['enabled']) ? 'يدوي مقفل' : 'آلي'));
+            $it['evaluation_mode'] = (string)($state_meta['evaluation_mode'] ?? ($wd['evaluation_mode'] ?? (!empty($manual_state['enabled']) ? 'manual_override' : 'auto')));
+            $it['evaluation_label'] = (string)($state_meta['evaluation_label'] ?? ($wd['evaluation_label'] ?? (!empty($manual_state['enabled']) ? 'يدوي مقفل' : 'آلي')));
+            $it['hybrid_layers'] = $state_meta['hybrid_layers'] ?? [];
+            $it['hybrid_count'] = (int)($state_meta['hybrid_count'] ?? 0);
+            $it['hybrid_label'] = !empty($it['hybrid_layers']) ? implode(' + ', array_slice($it['hybrid_layers'], 0, 3)) : '—';
             $it['intel_type'] = (string)$normalized['intel_type'];
             $it['tactical_level'] = (string)$normalized['tactical_level'];
             $it['region'] = (string)$normalized['region'];
@@ -207,10 +307,12 @@ function sod_ajax_newslog_search(): void {
             $it['intent'] = (string)$normalized['intent'];
             $it['target_v2'] = (string)$normalized['target_v2'];
             $it['weapon_v2'] = (string)$normalized['weapon_v2'];
+            if (!empty($it['has_manual_override'])) $manual_locked_count++;
+            if (!empty($it['hybrid_count'])) $hybrid_ready_count++;
         }
         unset($it);
     }
-    sod_newslog_send_success(['items'=>$items ?? [],'total'=>$total,'page'=>$page,'per_page'=>$per,'stats'=>['classified'=>$classified_count,'unclassified'=>$unclassified_count]]);
+    sod_newslog_send_success(['items'=>$items ?? [],'total'=>$total,'page'=>$page,'per_page'=>$per,'stats'=>['classified'=>$classified_count,'unclassified'=>$unclassified_count,'manual_locked'=>$manual_locked_count ?? 0,'hybrid_ready'=>$hybrid_ready_count ?? 0]]);
 }
 
 function sod_ajax_newslog_save(): void {
@@ -235,6 +337,7 @@ function sod_ajax_newslog_save(): void {
     $target = sanitize_text_field(wp_unslash($_POST['target_v2'] ?? $current['target_v2']));
     $context = sanitize_text_field(wp_unslash($_POST['context_actor'] ?? $current['context_actor']));
     $intent = sanitize_text_field(wp_unslash($_POST['intent'] ?? $current['intent']));
+    $manual_lock = !empty($_POST['manual_lock']) ? 1 : 0;
     if ($actor === '') $actor = sod_force_requested_actor_rule($actor, $region, $new_title);
 
     $update = ['intel_type'=>$intel_type,'tactical_level'=>$tac_level,'region'=>$region,'actor_v2'=>$actor,'score'=>$score,'status'=>$status,'weapon_v2'=>$weapon,'target_v2'=>$target,'context_actor'=>$context,'intent'=>$intent];
@@ -260,7 +363,17 @@ function sod_ajax_newslog_save(): void {
     $manual_fields = sod_collect_manual_override_fields($row, array_merge($update, ['title'=>$new_title]));
     $u = wp_get_current_user();
     $editor_label = ($u && method_exists($u, 'exists') && $u->exists()) ? $u->user_login : 'admin';
-    $update = sod_attach_manual_override_state($row, $update, $manual_fields, $editor_label);
+    if ($manual_lock) {
+        $update = sod_attach_manual_override_state($row, $update, $manual_fields, $editor_label);
+    } else {
+        $update = sod_mark_evaluation_state($row, $update, 'manual_saved');
+        $wd = sod_parse_json_array($update['war_data'] ?? ($row['war_data'] ?? '{}'));
+        unset($wd['manual_override']);
+        $update['war_data'] = wp_json_encode($wd, JSON_UNESCAPED_UNICODE);
+        $fd = sod_parse_json_array($update['field_data'] ?? ($row['field_data'] ?? '{}'));
+        unset($fd['manual_override']);
+        $update['field_data'] = wp_json_encode($fd, JSON_UNESCAPED_UNICODE);
+    }
     $res = sod_db_safe_update($table, $update, ['id'=>$id]);
     if (empty($res['ok'])) {
         sod_db_log_error('newslog_save', (string)($res['error'] ?? 'unknown'), ['table'=>$table,'id'=>$id,'update'=>$update]);
@@ -274,7 +387,7 @@ function sod_ajax_newslog_save(): void {
     $payload = ['actor_v2'=>$actor,'region'=>$region,'intel_type'=>$intel_type,'tactical_level'=>$tac_level,'score'=>$score,'title'=>$new_title,'target_v2'=>$target,'context_actor'=>$context,'intent'=>$intent,'weapon_v2'=>$weapon,'_early_warning'=>sod_early_warning_ai($new_title, ['actor'=>$actor,'region'=>$region,'intel_type'=>$intel_type]),'_prediction'=>sod_prediction_layer($new_title, ['actor'=>$actor,'region'=>$region,'intel_type'=>$intel_type,'target'=>$target,'weapon'=>$weapon,'early_warning'=>sod_early_warning_ai($new_title, ['actor'=>$actor,'region'=>$region,'intel_type'=>$intel_type])])];
     SO_Manual_Learning::save_feedback($event_fake, $payload);
     sod_context_memory_save_feedback($new_title, $payload);
-    sod_newslog_send_success(['updated'=>1,'manual_lock'=>1,'training'=>['deferred'=>1]]);
+    sod_newslog_send_success(['updated'=>1,'manual_lock'=>$manual_lock ? 1 : 0,'training'=>['deferred'=>1]]);
 }
 
 function sod_ajax_newslog_reclassify(): void {

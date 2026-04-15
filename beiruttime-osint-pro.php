@@ -11500,97 +11500,10 @@ public static function ajax_reanalyze_reset() {
 /**
  * AJAX: معالجة دفعة تنظيف المكرر
  */
-public static function ajax_duplicate_cleanup_batch() {
-    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
-    check_ajax_referer('so_ajax_v13', 'nonce');
-    
-    $batch = isset($_POST['batch']) ? max(5, min(500, intval($_POST['batch']))) : 50;
-    $reset = !empty($_POST['reset']);
-    
-    if ($reset) {
-        delete_option('so_duplicate_cleanup_cursor');
-        delete_option('so_duplicate_cleanup_running');
-    }
-    
-    $cursor = (int)get_option('so_duplicate_cleanup_cursor', 0);
-    $running = (int)get_option('so_duplicate_cleanup_running', 0);
-    
-    if ($running && !$reset) {
-        $progress = get_option('so_duplicate_cleanup_progress', []);
-        wp_send_json_success($progress);
-    }
-    
-    update_option('so_duplicate_cleanup_running', 1, false);
-    
-    global $wpdb;
-    $table = $wpdb->prefix . 'so_news_events';
-    $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-    
-    $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT id, title FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d",
-        $batch, $cursor
-    ), ARRAY_A);
-    
-    $deleted = 0;
-    $seen_titles = [];
-    
-    foreach ($rows as $row) {
-        $title = trim((string)($row['title'] ?? ''));
-        if ($title === '') continue;
-        
-        $normalized = sanitize_title($title);
-        if (isset($seen_titles[$normalized])) {
-            $wpdb->delete($table, ['id' => (int)$row['id']]);
-            $deleted++;
-        } else {
-            $seen_titles[$normalized] = true;
-        }
-    }
-    
-    $next_cursor = $cursor + count($rows);
-    $done = $next_cursor >= $total;
-    
-    $processed = min($next_cursor, $total);
-    $prev_progress = get_option('so_duplicate_cleanup_progress', []);
-    $prev_deleted = (int)($prev_progress['deleted_total'] ?? 0);
-    
-    $progress = [
-        'time' => time(),
-        'batch' => $batch,
-        'processed' => $processed,
-        'total' => $total,
-        'percent' => $total > 0 ? round(($processed / $total) * 100) : 100,
-        'deleted' => $deleted,
-        'deleted_total' => $prev_deleted + $deleted,
-        'done' => $done ? 1 : 0,
-        'next_cursor' => $done ? 0 : $next_cursor,
-        'running' => $done ? 0 : 1,
-    ];
-    
-    update_option('so_duplicate_cleanup_cursor', $done ? 0 : $next_cursor, false);
-    update_option('so_duplicate_cleanup_running', $done ? 0 : 1, false);
-    update_option('so_duplicate_cleanup_progress', $progress, false);
-    
-    wp_send_json_success($progress);
-}
 
 /**
  * AJAX: تصفير مؤشر تنظيف المكرر
  */
-public static function ajax_duplicate_cleanup_reset() {
-    if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'forbidden'], 403);
-    check_ajax_referer('so_ajax_v13', 'nonce');
-    
-    delete_option('so_duplicate_cleanup_cursor');
-    delete_option('so_duplicate_cleanup_running');
-    delete_option('so_duplicate_cleanup_progress');
-    
-    global $wpdb;
-    $table = $wpdb->prefix . 'so_news_events';
-    $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-    
-    wp_send_json_success(['reset' => 1, 'total' => $total]);
-}
 
 
     public static function page_db() {
@@ -11647,23 +11560,6 @@ public static function ajax_duplicate_cleanup_reset() {
                     <span>المفحوص: <span id="so-dup-processed"><?php echo intval($dup_processed); ?></span> / <span id="so-dup-total"><?php echo intval($dup_total); ?></span></span>
                     <span>المحذوف: <span id="so-dup-deleted"><?php echo intval($dup_deleted_total); ?></span></span>
                     <span>الحالة: <span id="so-dup-status"><?php echo $dup_done ? 'مكتمل' : ($dup_running ? 'قيد المتابعة' : 'متوقف'); ?></span></span>
-                </div>
-                <div style="height:12px;background:#1e293b;border-radius:999px;overflow:hidden;">
-                    <div id="so-dup-bar" style="height:12px;width:<?php echo intval($dup_percent); ?>%;background:linear-gradient(90deg,#f59e0b,#ef4444);"></div>
-                </div>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                <label style="display:flex;align-items:center;gap:6px;">
-                    <span>حجم الدفعة:</span>
-                    <input type="number" id="so-dup-batch" value="<?php echo intval($dup_batch ?: 50); ?>" min="10" max="2000" step="10" style="width:120px;">
-                </label>
-                <button type="button" class="button button-primary" id="so-dup-run"><?php echo $dup_done ? 'تشغيل تنظيف جديد' : 'متابعة تنظيف المكرر'; ?></button>
-                <button type="button" class="button" id="so-dup-reset">إعادة البدء من الصفر</button>
-                <span id="so-dup-msg" style="color:#64748b;font-size:12px;"></span>
-            </div>
-            <script type="text/template" id="sod-db-dup-inline-disabled">
-            (function(){
-                const runBtn = document.getElementById('so-dup-run');
                 const resetBtn = document.getElementById('so-dup-reset');
                 const batchEl = document.getElementById('so-dup-batch');
                 const msgEl = document.getElementById('so-dup-msg');

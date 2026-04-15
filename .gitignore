@@ -1,45 +1,53 @@
 ```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-*.so
-*.dll
-*.exe
-*.class
-*.out
-
 # Dependencies
-.venv/
-venv/
-node_modules/
-dist/
+vendor/
+composer.lock
+
+# Build directories
 build/
-target/
-.gradle/
-.mypy_cache/
-.pytest_cache/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
 coverage/
 htmlcov/
 .coverage
 
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
+# PHP specific
+*.php~
+*.bak
+*.orig
 
-# Environment
-.env
-.env.local
-.env.*
+# WordPress specific
+wp-content/cache/
+*.sql
+*.sql.gz
 
-# Editors
-.vscode/
-.idea/
-
-# System files
-.DS_Store
-Thumbs.db
+# Archives
+*.zip
+*.tar
+*.gz
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
 ```

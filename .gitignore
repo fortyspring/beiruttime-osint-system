@@ -1,3 +1,35 @@
-(beiruttime-osint-pro.php and src/services/class-batch-reindexer.php are PHP source files, which shouldn't be ignored)
+```
+# Test results and coverage
+.coverage
+coverage/
+htmlcov/
+.nyc_output/
 
-Nothing to ignore.
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Dependencies
+vendor/
+composer.lock
+
+# Build and distribution
+dist/
+build/
+*.phar
+
+# OS specific
+.DS_Store
+Thumbs.db
+```

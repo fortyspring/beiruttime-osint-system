@@ -38,42 +38,51 @@ class OSINT_WebSocket_Handler {
     }
     
     /**
-     * Setup WebSocket/SSE
+     * Setup WebSocket/SSE - Modified for GoDaddy Shared Hosting
      */
     private function setup() {
-        // Check if Ratchet is available
-        if (class_exists('Ratchet\Server\IoServer')) {
-            $this->websocket_url = $this->get_websocket_url();
-        }
+        // Disable WebSocket and SSE for GoDaddy compatibility
+        $this->websocket_url = '';
+        $this->sse_enabled = false;
         
-        // SSE is always available as fallback
-        $this->sse_enabled = true;
-        
-        // Register AJAX endpoints for real-time communication
+        // Register AJAX endpoints for Smart Polling
         add_action('wp_ajax_osint_subscribe', array($this, 'handle_subscribe'));
         add_action('wp_ajax_nopriv_osint_subscribe', array($this, 'handle_subscribe'));
         
-        add_action('wp_ajax_osint_sse', array($this, 'handle_sse'));
-        add_action('wp_ajax_nopriv_osint_sse', array($this, 'handle_sse'));
+        add_action('wp_ajax_osint_poll', array($this, 'handle_poll'));
+        add_action('wp_ajax_nopriv_osint_poll', array($this, 'handle_poll'));
         
-        // Register direct endpoint for SSE (bypass admin-ajax for better performance)
-        add_action('template_redirect', array($this, 'handle_sse_direct'));
+        // Hook into broadcast events to store messages in queue
+        add_action('osint_broadcast', array($this, 'queue_message'), 10, 3);
     }
     
     /**
-     * Get WebSocket server URL
+     * Handle Smart Polling for GoDaddy compatibility
+     * Returns queued messages instead of maintaining SSE connection
+     */
+    public function handle_poll() {
+        check_ajax_referer('osint_nonce', 'nonce');
+        
+        $channel = isset($_POST['channel']) ? sanitize_text_field($_POST['channel']) : 'general';
+        $since = isset($_POST['since']) ? intval($_POST['since']) : 0;
+        
+        $messages = $this->get_queued_messages($channel, $since);
+        
+        wp_send_json_success(array(
+            'messages' => $messages,
+            'count' => count($messages),
+            'mode' => 'polling',
+            'timestamp' => time(),
+        ));
+    }
+
+    /**
+     * Get WebSocket server URL (disabled for GoDaddy)
      * 
      * @return string
      */
     private function get_websocket_url() {
-        $host = defined('OSINT_WS_HOST') ? OSINT_WS_HOST : get_site_url();
-        $port = defined('OSINT_WS_PORT') ? OSINT_WS_PORT : 8080;
-        
-        // Parse host to get domain
-        $parsed = parse_url($host);
-        $domain = $parsed['host'] ?? 'localhost';
-        
-        return 'ws://' . $domain . ':' . $port;
+        return ''; // Disabled for shared hosting compatibility
     }
     
     /**

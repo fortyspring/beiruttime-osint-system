@@ -1,53 +1,64 @@
 ```
+# Build artifacts
+build/
+dist/
+
 # Dependencies
 vendor/
-composer.lock
 
-# Build directories
-build/
+# Compressed files
+*.zip
 
-# Logs
+# Logs and temp files
 *.log
+*.tmp
 
-# Environment files
+# Environment
 .env
 .env.local
 *.env.*
 
-# Editor files
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
-# OS files
-.DS_Store
-Thumbs.db
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Coverage reports
+# Node.js
+node_modules/
+
+# Java/Maven/Gradle
+target/
+.gradle/
+
+# C/C++
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+
+# Ruby
+*.gem
+*.rbc
 coverage/
-htmlcov/
-.coverage
 
-# PHP specific
-*.php~
-*.bak
-*.orig
+# Go
+*.out
 
-# WordPress specific
-wp-content/cache/
-*.sql
-*.sql.gz
-
-# Archives
-*.zip
-*.tar
+# Compression
 *.gz
+*.tar
 *.tgz
 *.bz2
 *.xz
 *.7z
 *.rar
-*.zst
+*.Z
+*.lz
 ```

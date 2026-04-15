@@ -81,4 +81,43 @@ class CacheHandlerTest extends WP_UnitTestCase {
         $this->assertArrayHasKey('backend', $stats);
         $this->assertContains($stats['backend'], array('wp', 'redis', 'memcached'));
     }
+
+    /**
+     * Test clear group
+     */
+    public function test_clear_group() {
+        $group = 'test_group_' . time();
+        $key1 = 'key1_' . time();
+        $key2 = 'key2_' . time();
+        
+        $this->cache_handler->set($key1, 'value1', 60, $group);
+        $this->cache_handler->set($key2, 'value2', 60, $group);
+        
+        $result = $this->cache_handler->clear_group($group);
+        $this->assertTrue($result);
+        
+        $this->assertFalse($this->cache_handler->get($key1));
+        $this->assertFalse($this->cache_handler->get($key2));
+    }
+
+    /**
+     * Test flush all cache
+     */
+    public function test_flush() {
+        $key = 'flush_test_' . time();
+        $this->cache_handler->set($key, 'flush_value', 60);
+        
+        $result = $this->cache_handler->flush();
+        $this->assertTrue($result);
+        
+        $this->assertFalse($this->cache_handler->get($key));
+    }
+
+    /**
+     * Test cleanup method exists and returns integer
+     */
+    public function test_cleanup() {
+        $result = $this->cache_handler->cleanup();
+        $this->assertIsInt($result);
+    }
 }

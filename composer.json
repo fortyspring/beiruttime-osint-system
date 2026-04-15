@@ -37,9 +37,11 @@
     },
     "scripts": {
         "test": "phpunit",
+        "test:simple": "phpunit -c phpunit-simple.xml",
         "test:cache": "phpunit --group cache",
         "test:websocket": "phpunit --group websocket",
         "test:module": "phpunit --group module",
+        "test:security": "phpunit --group security",
         "test:coverage": "phpunit --coverage-html coverage",
         "test:mutation": "infection --threads=4",
         "lint": "phpcs --standard=WordPress",

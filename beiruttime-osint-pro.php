@@ -14547,6 +14547,11 @@ register_activation_hook(__FILE__, ['SO_Executive_Reports', 'activate']);
 register_deactivation_hook(__FILE__, ['SO_Executive_Reports', 'deactivate']);
 
 add_action('plugins_loaded', function() {
+    // تهيئة النظام النمطي أولاً
+    if (file_exists(__DIR__ . '/includes/class-modular-core.php')) {
+        require_once __DIR__ . '/includes/class-modular-core.php';
+    }
+    
     SO_DB_Manager::ensure_runtime_defaults();
     SO_V7_Upgrade::maybe_upgrade();
     SO_Cron_Manager::init();

@@ -216,11 +216,8 @@ class Batch_Reindexer {
                         if ($wpdb->last_error) {
                             throw new \Exception($wpdb->last_error);
                         }
-                    }
-                        if ($wpdb->last_error) {
-                            throw new \Exception($wpdb->last_error);
-                        }
                         error_log("Beiruttime OSINT: Updated event ID " . $event['id'] . " with threat_score=" . (int)$scores['threat_score'] . ", layers=" . count(json_decode($layers_json, true) ?: []));
+                    }
                     
                     // نعتبر الحدث محدثاً سواء تم التحديث فعلياً أم لا (لتتبع التقدم)
                     $this->stats['updated']++;

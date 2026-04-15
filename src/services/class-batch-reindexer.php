@@ -58,6 +58,7 @@ class Batch_Reindexer {
         
         // جلب الأحداث التي لم تُحلل بعد أو تحتاج تحديث - نستخدم offset حقيقي بغض النظر عن حالة threat_score
         // لأن الـ offset يأتي من الجافاسكريبت ويعبر عن عدد الأحداث المعالجة فعلياً
+        // إصلاح: نجلب جميع الأحداث بترتيب زمني لنضمن معالجة كل الأحداث
         $events = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT id, title, content, war_data, actor_v2, region, score, osint_type, hybrid_layers 

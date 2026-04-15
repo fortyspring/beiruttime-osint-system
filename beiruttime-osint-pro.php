@@ -1486,8 +1486,8 @@ function so_cleanup_duplicate_news_events($limit = 1200) {
     }
 
     if (!empty($delete_ids)) {
-        $in = implode(',', array_map('intval', $delete_ids));
-        $wpdb->query("DELETE FROM {$table} WHERE id IN ({$in})");
+        $placeholders = implode(',', array_fill(0, count($delete_ids), '%d'));
+        $wpdb->query($wpdb->prepare("DELETE FROM {$table} WHERE id IN ($placeholders)", ...$delete_ids));
     }
 
     return ['deleted' => count($delete_ids), 'kept' => count($rows) - count($delete_ids)];
@@ -3940,8 +3940,8 @@ class SO_Cron_Manager {
             $keep_id = (int)$events[0]['id'];
             $del_ids = array_map(fn($e)=>(int)$e['id'], array_slice($events, 1));
             if (!empty($del_ids)) {
-                $placeholders = implode(',', $del_ids);
-                $wpdb->query("DELETE FROM $t WHERE id IN ($placeholders) AND score < 140");
+                $placeholders = implode(',', array_fill(0, count($del_ids), '%d'));
+                $wpdb->query($wpdb->prepare("DELETE FROM $t WHERE id IN ($placeholders) AND score < 140", ...$del_ids));
                 $removed += count($del_ids);
             }
         }
@@ -11427,8 +11427,8 @@ public static function ajax_duplicate_cleanup_batch() {
     }
 
     if (!empty($delete_ids)) {
-        $in = implode(',', array_map('intval', $delete_ids));
-        $wpdb->query("DELETE FROM {$table} WHERE id IN ({$in})");
+        $placeholders = implode(',', array_fill(0, count($delete_ids), '%d'));
+        $wpdb->query($wpdb->prepare("DELETE FROM {$table} WHERE id IN ($placeholders)", ...$delete_ids));
     }
 
     // keep seen bounded

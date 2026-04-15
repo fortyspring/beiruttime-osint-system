@@ -1737,14 +1737,40 @@ function so_reanalyze_all_news_events_full($batch = 1000, $reset = false) {
     if ($reset) {
         update_option('so_reanalyze_cursor', 0, false);
         update_option('so_reanalyze_running', 1, false);
+        delete_option('so_reanalyze_progress');
     }
 
     $offset = (int) get_option('so_reanalyze_cursor', 0);
     $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+    
+    if ($total === 0) {
+        return [
+            'time' => time(),
+            'batch' => $batch,
+            'processed' => 0,
+            'total' => 0,
+            'percent' => 0,
+            'updated' => 0,
+            'done' => true,
+            'next_offset' => 0,
+            'running' => 0,
+        ];
+    }
 
     $result = so_reanalyze_all_news_events($batch, $offset);
-    $next_offset = (int)($result['next_offset'] ?? $offset);
-    $done = !empty($result['done']);
+    
+    if (!is_array($result)) {
+        $result = [
+            'updated' => 0,
+            'scanned' => 0,
+            'next_offset' => $offset + $batch,
+            'total' => $total,
+            'done' => false,
+        ];
+    }
+    
+    $next_offset = isset($result['next_offset']) ? (int)$result['next_offset'] : $offset + $batch;
+    $done = !empty($result['done']) || $next_offset >= $total;
 
     update_option('so_reanalyze_cursor', $done ? 0 : $next_offset, false);
     update_option('so_reanalyze_running', $done ? 0 : 1, false);
@@ -1758,7 +1784,7 @@ function so_reanalyze_all_news_events_full($batch = 1000, $reset = false) {
         'processed' => (int)$processed,
         'total' => (int)$total,
         'percent' => (int)$percent,
-        'updated' => (int)($result['updated'] ?? 0),
+        'updated' => isset($result['updated']) ? (int)$result['updated'] : 0,
         'done' => (bool)$done,
         'next_offset' => (int)($done ? 0 : $next_offset),
         'running' => $done ? 0 : 1,

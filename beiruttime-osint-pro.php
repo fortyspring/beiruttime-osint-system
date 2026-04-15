@@ -16154,10 +16154,11 @@ add_action('wp_ajax_bt_reindex_batch', 'sod_ajax_bt_reindex_batch');
  * معالج AJAX لمعالجة دفعات الأرشفة
  */
 function sod_ajax_bt_reindex_batch() {
-    check_ajax_referer('bt_reindex_ajax', 'nonce');
+    // التحقق من Nonce أولاً
+    check_ajax_referer('bt_reindex_ajax', 'nonce', true);
     
     if (!current_user_can('manage_options')) {
-        wp_send_json_error('غير مصرح');
+        wp_send_json_error(['message' => 'غير مصرح'], 403);
         return;
     }
     
@@ -16180,24 +16181,29 @@ function sod_ajax_bt_reindex_batch() {
             require_once __DIR__ . '/beiruttime-osint-pro.php';
         }
         
+        error_log("Beiruttime OSINT AJAX: Starting batch - Size: $batch_size, Offset: $offset");
+        
         $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
         $result = $reindexer->run_batch($batch_size, $offset, false);
         
-        // حساب المتبقي بناءً على إجمالي الأحداث ناقص المعالج
+        // حساب المتبقي بناءً على إجمالي الأحداث
         $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name}");
-        $remaining = max(0, $total_events - ($offset + ($result['stats']['updated'] ?? 0)));
+        $processed_count = $result['stats']['updated'] ?? 0;
+        $remaining = max(0, $total_events - ($offset + $processed_count));
+        
+        error_log("Beiruttime OSINT AJAX: Batch complete - Processed: $processed_count, Errors: " . ($result['stats']['errors'] ?? 0) . ", Remaining: $remaining");
         
         wp_send_json_success([
-            'processed' => $result['stats']['updated'] ?? 0,
+            'processed' => $processed_count,
             'errors' => $result['stats']['errors'] ?? 0,
             'remaining' => $remaining,
             'message' => $result['message'] ?? '',
             'total' => $total_events,
-            'offset_next' => $offset + ($result['stats']['updated'] ?? 0)
+            'offset_next' => $offset + $processed_count
         ]);
     } catch (\Throwable $e) {
-        error_log('Batch Reindexer AJAX Error: ' . $e->getMessage());
-        wp_send_json_error($e->getMessage());
+        error_log('Batch Reindexer AJAX Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        wp_send_json_error(['message' => $e->getMessage()]);
     }
 }
 

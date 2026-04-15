@@ -1515,7 +1515,9 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
 
     $updated = 0;
     $locked = 0;
+    $scanned = 0;
     foreach ($rows as $row) {
+        $scanned++;
         $title = (string)($row['title'] ?? '');
         if ($title === '') {
             error_log("SO_Reanalyze_Batch: Skipping row ID " . ($row['id'] ?? '?') . " - empty title");
@@ -1527,9 +1529,11 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
                 'war_data' => (string)($row['war_data'] ?? '{}'),
                 'field_data' => (string)($row['field_data'] ?? '{}'),
             ], 'manual_override');
-            sod_db_safe_update($table, $update, ['id' => (int)$row['id']]);
-            $locked++;
-            error_log("SO_Reanalyze_Batch: Row ID " . $row['id'] . " is manually locked.");
+            $res = sod_db_safe_update($table, $update, ['id' => (int)$row['id']]);
+            if (!empty($res['ok'])) {
+                $locked++;
+                error_log("SO_Reanalyze_Batch: Row ID " . $row['id'] . " is manually locked and updated.");
+            }
             continue;
         }
 
@@ -1574,17 +1578,21 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
         $res = sod_db_safe_update($table, $update_payload, ['id' => (int)$row['id']]);
         if (!empty($res['ok'])) {
             $updated++;
-            error_log("SO_Reanalyze_Batch: Updated row ID " . $row['id']);
+            error_log("SO_Reanalyze_Batch: Updated row ID " . $row['id'] . " - affected rows: " . (isset($res['updated']) ? $res['updated'] : 'N/A'));
             foreach ([['types',$update_payload['intel_type']],['levels',$update_payload['tactical_level']],['regions',$update_payload['region']],['actors',$update_payload['actor_v2']],['targets',$target_v2],['contexts',$context_actor],['intents',$intent],['weapons',$weapon_v2]] as $pair) {
                 [$bk,$val] = $pair;
                 if ($val !== '' && $val !== 'فاعل غير محسوم' && $val !== 'غير محدد') sod_add_bank_value($bk, $val);
             }
+        } else {
+            error_log("SO_Reanalyze_Batch: Failed to update row ID " . $row['id'] . " - error: " . ($res['error'] ?? 'unknown'));
         }
     }
 
     $next_offset = $offset + count($rows);
     $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
     $done = $next_offset >= $total;
+
+    error_log("SO_Reanalyze_Batch: Completed batch - scanned=$scanned, updated=$updated, locked=$locked, next_offset=$next_offset, total=$total, done=" . ($done ? 'true' : 'false'));
 
     $train = ['scanned' => 0, 'learned' => 0, 'deferred' => 1];
     if ($done) {
@@ -1595,7 +1603,7 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
         'time' => time(),
         'updated' => (int)$updated,
         'locked' => (int)$locked,
-        'scanned' => (int)count($rows),
+        'scanned' => (int)$scanned,
         'limit' => (int)$limit,
         'offset' => (int)$offset,
         'next_offset' => (int)$next_offset,
@@ -1608,7 +1616,7 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
     return [
         'updated' => (int)$updated,
         'locked' => (int)$locked,
-        'scanned' => (int)count($rows),
+        'scanned' => (int)$scanned,
         'next_offset' => (int)$next_offset,
         'total' => (int)$total,
         'done' => (bool)$done,

@@ -338,8 +338,8 @@ function beiruttime_osint_init() {
     beiruttime_osint_load_advanced();
     
     // تهيئة محمّل الوحدات
-    if (class_exists('Beiruttime\\OSINT\\Module_Loader')) {
-        Beiruttime\\OSINT\\Module_Loader::init();
+    if (class_exists('Beiruttime\OSINT\Module_Loader')) {
+        Beiruttime\OSINT\Module_Loader::init();
     }
 }
 add_action('plugins_loaded', 'beiruttime_osint_init');

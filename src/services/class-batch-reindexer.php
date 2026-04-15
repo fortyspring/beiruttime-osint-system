@@ -174,53 +174,45 @@ class Batch_Reindexer {
                 $actor_network = $this->extract_actor_network($event_data);
 
                 if (!$dry_run) {
-                    // تحديث السجل في قاعدة البيانات - نتحقق مما إذا كان التحديث ضرورياً لتجنب الكتابة المكررة
-                    $current_data = $wpdb->get_row($wpdb->prepare("SELECT threat_score, hybrid_layers FROM {$this->table_name} WHERE id = %d", $event['id']), ARRAY_A);
-                    
-                    // نحدث فقط إذا كانت البيانات مختلفة أو لم تُحلل من قبل
-                    $needs_update = true; // تحديث جميع الأحداث للتجربة
-                    
-                    if ($needs_update) {
-                        $update_data = [
-                            'hybrid_layers' => $layers_json,
-                            'osint_type' => $primary_layer,
-                            'multi_domain_score' => $multi_domain,
-                            'threat_score' => (int)$scores['threat_score'],
-                            'escalation_score' => (int)$scores['escalation_score'],
-                            'confidence_score' => (int)$scores['confidence_score'],
-                            'risk_level' => $scores['risk_level'],
-                            'primary_actor' => $actor_network['primary_actor'] ?? '',
-                            'actor_network' => $actor_network['actor_network'] ?? null,
-                            'reindexed_at' => current_time('mysql')
-                        ];
+                    // تحديث السجل في قاعدة البيانات مباشرة بدون تحقق إضافي
+                    $update_data = [
+                        'hybrid_layers' => $layers_json,
+                        'osint_type' => $primary_layer,
+                        'multi_domain_score' => $multi_domain,
+                        'threat_score' => (int)$scores['threat_score'],
+                        'escalation_score' => (int)$scores['escalation_score'],
+                        'confidence_score' => (int)$scores['confidence_score'],
+                        'risk_level' => $scores['risk_level'],
+                        'primary_actor' => $actor_network['primary_actor'] ?? '',
+                        'actor_network' => $actor_network['actor_network'] ?? null,
+                        'reindexed_at' => current_time('mysql')
+                    ];
 
-                        $wpdb->update(
-                            $this->table_name,
-                            $update_data,
-                            ['id' => $event['id']],
-                            [
-                                'hybrid_layers' => '%s',
-                                'osint_type' => '%s',
-                                'multi_domain_score' => '%f',
-                                'threat_score' => '%d',
-                                'escalation_score' => '%d',
-                                'confidence_score' => '%d',
-                                'risk_level' => '%s',
-                                'primary_actor' => '%s',
-                                'actor_network' => '%s',
-                                'reindexed_at' => '%s'
-                            ],
-                            ['id' => '%d']
-                        );
+                    $result = $wpdb->update(
+                        $this->table_name,
+                        $update_data,
+                        ['id' => $event['id']],
+                        [
+                            'hybrid_layers' => '%s',
+                            'osint_type' => '%s',
+                            'multi_domain_score' => '%f',
+                            'threat_score' => '%d',
+                            'escalation_score' => '%d',
+                            'confidence_score' => '%d',
+                            'risk_level' => '%s',
+                            'primary_actor' => '%s',
+                            'actor_network' => '%s',
+                            'reindexed_at' => '%s'
+                        ],
+                        ['id' => '%d']
+                    );
 
-                        if ($wpdb->last_error) {
-                            throw new \Exception($wpdb->last_error);
-                        }
-                        error_log("Beiruttime OSINT: Updated event ID " . $event['id'] . " with threat_score=" . (int)$scores['threat_score'] . ", layers=" . count(json_decode($layers_json, true) ?: []));
+                    if ($result === false) {
+                        throw new \Exception('فشل التحديث: ' . ($wpdb->last_error ?? 'خطأ غير معروف'));
                     }
                     
-                    // نعتبر الحدث محدثاً سواء تم التحديث فعلياً أم لا (لتتبع التقدم)
                     $this->stats['updated']++;
+                    error_log("Beiruttime OSINT: Updated event ID " . $event['id'] . " with threat_score=" . (int)$scores['threat_score'] . ", layers=" . count(json_decode($layers_json, true) ?: []));
                 } else {
                     $this->stats['updated']++; // في وضع التجربة نعتبرها محدثة
                 }

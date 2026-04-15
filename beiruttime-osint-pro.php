@@ -40,7 +40,7 @@ if (!file_exists(BEIRUTTIME_OSINT_LOGS_DIR)) {
  * فئة التحميل التلقائي للفئات
  */
 spl_autoload_register(function ($class) {
-    $prefix = 'Beiruttime\\OSINT\\';
+    $prefix = 'Beiruttime\OSINT\';
     $base_dir = BEIRUTTIME_OSINT_INCLUDES_DIR;
     
     $len = strlen($prefix);
@@ -453,11 +453,11 @@ add_action('admin_init', 'beiruttime_osint_ajax_init');
 function beiruttime_ajax_graphql_handler() {
     check_ajax_referer('beiruttime_graphql_nonce', 'nonce');
     
-    if (!class_exists('Beiruttime\\OSINT\\GraphQL_API')) {
+    if (!class_exists('Beiruttime\OSINT\GraphQL_API')) {
         wp_send_json_error(array('message' => 'GraphQL API not available'));
     }
     
-    $graphql = new Beiruttime\\OSINT\\GraphQL_API();
+    $graphql = new Beiruttime\OSINT\GraphQL_API();
     $query = isset($_POST['query']) ? sanitize_text_field(wp_unslash($_POST['query'])) : '';
     $variables = isset($_POST['variables']) ? json_decode(wp_unslash($_POST['variables']), true) : array();
     
@@ -474,96 +474,96 @@ function beiruttime_ajax_graphql_handler() {
  * دوال AJAX stub (سيتم تنفيذها في class-ajax-handlers.php)
  */
 function beiruttime_ajax_get_quick_stats() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_quick_stats();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_quick_stats();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_recent_alerts() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_recent_alerts();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_recent_alerts();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_activity_chart() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_activity_chart();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_activity_chart();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_map_events() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_map_events();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_map_events();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_heatmap_data() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_heatmap_data();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_heatmap_data();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_clustered_events() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_clustered_events();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_clustered_events();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_chart_data() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_chart_data();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_chart_data();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_comparison_data() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_comparison_data();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_comparison_data();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_pattern_analysis() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_pattern_analysis();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_pattern_analysis();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_trend_analysis() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_trend_analysis();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_trend_analysis();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_get_prediction_report() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_get_prediction_report();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_get_prediction_report();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
 }
 
 function beiruttime_ajax_generate_full_report() {
-    if (class_exists('Beiruttime\\OSINT\\Ajax_Handlers')) {
-        Beiruttime\\OSINT\\Ajax_Handlers::handle_generate_full_report();
+    if (class_exists('Beiruttime\OSINT\Ajax_Handlers')) {
+        Beiruttime\OSINT\Ajax_Handlers::handle_generate_full_report();
     } else {
         wp_send_json_error(array('message' => 'Handler not available'));
     }
@@ -573,8 +573,8 @@ function beiruttime_ajax_generate_full_report() {
  * تنظيف دوري
  */
 function beiruttime_osint_hourly_cleanup() {
-    if (class_exists('Beiruttime\\OSINT\\Queue_System')) {
-        Beiruttime\\OSINT\\Queue_System::cleanup_completed_jobs();
+    if (class_exists('Beiruttime\OSINT\Queue_System')) {
+        Beiruttime\OSINT\Queue_System::cleanup_completed_jobs();
     }
 }
 add_action('beiruttime_osint_hourly_cleanup', 'beiruttime_osint_hourly_cleanup');
@@ -583,8 +583,8 @@ add_action('beiruttime_osint_hourly_cleanup', 'beiruttime_osint_hourly_cleanup')
  * تحليل يومي
  */
 function beiruttime_osint_daily_analysis() {
-    if (class_exists('Beiruttime\\OSINT\\Early_Warning')) {
-        $warning = new Beiruttime\\OSINT\\Early_Warning();
+    if (class_exists('Beiruttime\OSINT\Early_Warning')) {
+        $warning = new Beiruttime\OSINT\Early_Warning();
         $warning->generate_daily_digest();
     }
 }

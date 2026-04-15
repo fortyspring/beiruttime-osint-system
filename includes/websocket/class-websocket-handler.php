@@ -55,6 +55,9 @@ class OSINT_WebSocket_Handler {
         
         add_action('wp_ajax_osint_sse', array($this, 'handle_sse'));
         add_action('wp_ajax_nopriv_osint_sse', array($this, 'handle_sse'));
+        
+        // Register direct endpoint for SSE (bypass admin-ajax for better performance)
+        add_action('template_redirect', array($this, 'handle_sse_direct'));
     }
     
     /**
@@ -100,9 +103,28 @@ class OSINT_WebSocket_Handler {
     }
     
     /**
-     * Handle Server-Sent Events stream
+     * Handle Server-Sent Events stream (via admin-ajax)
      */
     public function handle_sse() {
+        $this->run_sse_stream();
+    }
+    
+    /**
+     * Handle SSE direct endpoint (bypass admin-ajax for GoDaddy compatibility)
+     * URL: https://yoursite.com/?osint_stream=1&token=xxx
+     */
+    public function handle_sse_direct() {
+        if (!isset($_GET['osint_stream']) || $_GET['osint_stream'] != '1') {
+            return;
+        }
+        
+        $this->run_sse_stream();
+    }
+    
+    /**
+     * Run SSE stream (shared logic)
+     */
+    private function run_sse_stream() {
         // Disable compression and caching for SSE
         if (function_exists('apache_setenv')) {
             apache_setenv('no-gzip', '1');
@@ -110,17 +132,26 @@ class OSINT_WebSocket_Handler {
         
         @ini_set('zlib.output_compression', 'Off');
         @ini_set('output_buffering', 'Off');
+        @ini_set('implicit_flush', '1');
         
         // Set SSE headers
-        header('Content-Type: text/event-stream');
-        header('Cache-Control: no-cache');
+        header('Content-Type: text/event-stream; charset=utf-8');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
         header('Connection: keep-alive');
         header('X-Accel-Buffering: no'); // Disable Nginx buffering
+        header('Expires: 0');
+        
+        // Force flush any output buffers
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
         
         $token = isset($_GET['token']) ? sanitize_text_field($_GET['token']) : '';
         
         if (empty($token)) {
             echo "data: " . json_encode(array('error' => 'Missing token')) . "\n\n";
+            if (ob_get_level()) ob_flush();
             flush();
             exit;
         }
@@ -128,15 +159,18 @@ class OSINT_WebSocket_Handler {
         // Verify subscription
         $subscription = get_transient('osint_sub_' . $token);
         if (!$subscription) {
-            echo "data: " . json_encode(array('error' => 'Invalid token')) . "\n\n";
+            echo "data: " . json_encode(array('error' => 'Invalid or expired token')) . "\n\n";
+            if (ob_get_level()) ob_flush();
             flush();
             exit;
         }
         
         // Send initial connection message
         $this->send_event('connected', array(
-            'message' => 'Connected to OSINT real-time updates',
+            'message' => 'Connected to OSINT real-time updates (SSE Mode)',
             'channels' => $subscription['channels'],
+            'mode' => 'sse',
+            'timestamp' => time(),
         ));
         
         // Keep connection alive
@@ -154,12 +188,12 @@ class OSINT_WebSocket_Handler {
                 }
             }
             
-            // Send heartbeat every 30 seconds
-            if (time() % 30 === 0) {
+            // Send heartbeat every 15 seconds (GoDaddy friendly)
+            if (time() % 15 === 0) {
                 $this->send_event('heartbeat', array('timestamp' => time()));
             }
             
-            sleep(1);
+            usleep(500000); // Sleep 0.5 seconds instead of 1 second for better responsiveness
         }
         
         exit;
@@ -296,6 +330,9 @@ class OSINT_WebSocket_Handler {
         $cache_key = 'osint_broadcast_' . $channel . '_' . time();
         set_transient($cache_key, $data, MINUTE_IN_SECONDS);
         
+        // Also store in a persistent queue for dashboard updates
+        $this->store_for_dashboard($channel, $data);
+        
         // If WebSocket server is running, send via WebSocket
         if (!empty($this->websocket_url) && class_exists('Ratchet\MessageComponentInterface')) {
             $this->send_via_websocket($channel, $data);
@@ -303,6 +340,52 @@ class OSINT_WebSocket_Handler {
         
         // Trigger WordPress action for other integrations
         do_action('osint_realtime_broadcast', $channel, $data);
+    }
+    
+    /**
+     * Store broadcast data for dashboard polling (fallback for GoDaddy)
+     * 
+     * @param string $channel Channel name
+     * @param array $data Message data
+     */
+    private function store_for_dashboard($channel, $data) {
+        $queue_key = 'osint_queue_' . $channel;
+        $queue = get_option($queue_key, array());
+        
+        // Add new data with timestamp
+        $queue[] = array(
+            'data' => $data,
+            'timestamp' => time(),
+            'channel' => $channel,
+        );
+        
+        // Keep only last 50 items
+        if (count($queue) > 50) {
+            array_shift($queue);
+        }
+        
+        update_option($queue_key, $queue, false);
+    }
+    
+    /**
+     * Get queued messages for dashboard (AJAX polling fallback)
+     * 
+     * @param string $channel Channel name
+     * @param int $since_timestamp Get messages since this time
+     * @return array
+     */
+    public function get_queued_messages($channel, $since_timestamp = 0) {
+        $queue_key = 'osint_queue_' . $channel;
+        $queue = get_option($queue_key, array());
+        
+        $messages = array();
+        foreach ($queue as $item) {
+            if ($item['timestamp'] > $since_timestamp) {
+                $messages[] = $item;
+            }
+        }
+        
+        return $messages;
     }
     
     /**

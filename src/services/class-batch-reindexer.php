@@ -93,6 +93,8 @@ class Batch_Reindexer {
             $use_legacy = true;
         }
         
+        // تسجيل بداية المعالجة للأغراض التشخيصية
+        error_log("Beiruttime OSINT: Starting batch processing - Events fetched: " . count($events) . ", Offset: " . $offset . ", Batch Size: " . $limit);
         // تحديد ما إذا كان يجب استخدام المحرك القديم (افتراضي: استخدام المحرك الجديد)
         if ($hybrid_engine === null) {
             $use_legacy = true;
@@ -171,7 +173,7 @@ class Batch_Reindexer {
                     $current_data = $wpdb->get_row($wpdb->prepare("SELECT threat_score, hybrid_layers FROM {$this->table_name} WHERE id = %d", $event['id']), ARRAY_A);
                     
                     // نحدث فقط إذا كانت البيانات مختلفة أو لم تُحلل من قبل
-                    $needs_update = empty($current_data['threat_score']) || $current_data['threat_score'] == 0 || empty($current_data['hybrid_layers']);
+                    $needs_update = true; // تحديث جميع الأحداث للتجربة
                     
                     if ($needs_update) {
                         $update_data = [
@@ -210,6 +212,10 @@ class Batch_Reindexer {
                             throw new \Exception($wpdb->last_error);
                         }
                     }
+                        if ($wpdb->last_error) {
+                            throw new \Exception($wpdb->last_error);
+                        }
+                        error_log("Beiruttime OSINT: Updated event ID " . $event['id'] . " with threat_score=" . (int)$scores['threat_score'] . ", layers=" . count(json_decode($layers_json, true) ?: []));
                     
                     // نعتبر الحدث محدثاً سواء تم التحديث فعلياً أم لا (لتتبع التقدم)
                     $this->stats['updated']++;

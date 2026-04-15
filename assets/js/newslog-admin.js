@@ -40,9 +40,13 @@ function nlUpdateStats(stats, total) {
     const filtered = document.querySelector('#nl-filtered-count b');
     const classified = document.querySelector('#nl-classified-count b');
     const unclassified = document.querySelector('#nl-unclassified-count b');
+    const manual = document.querySelector('#nl-manual-count b');
+    const hybrid = document.querySelector('#nl-hybrid-count b');
     if (filtered) filtered.textContent = (total || 0).toLocaleString('ar');
     if (classified) classified.textContent = ((stats && stats.classified) || 0).toLocaleString('ar');
     if (unclassified) unclassified.textContent = ((stats && stats.unclassified) || 0).toLocaleString('ar');
+    if (manual) manual.textContent = ((stats && stats.manual_locked) || 0).toLocaleString('ar');
+    if (hybrid) hybrid.textContent = ((stats && stats.hybrid_ready) || 0).toLocaleString('ar');
 }
 
 function apiFetch(data) {
@@ -319,11 +323,38 @@ window.nlRemoveFromBank = function (bank, selectId) {
     });
 };
 
+function renderHybridBadges(item) {
+    const rawLayers = Array.isArray(item.hybrid_layers) ? item.hybrid_layers : [];
+    const layers = rawLayers.filter(function (x) {
+        return x && String(x).trim() && String(x).trim() !== '—';
+    }).slice(0, 4);
+    if (layers.length) {
+        return layers.map(function (layer) {
+            return '<span class="nl-hybrid-chip">' + esc(String(layer)) + '</span>';
+        }).join('');
+    }
+    const fallback = item.hybrid_label && String(item.hybrid_label).trim() ? String(item.hybrid_label) : '';
+    if (!fallback || fallback === '—' || fallback === '0') return '<span class="nl-empty-state">—</span>';
+    return fallback.split('+').map(function (layer) {
+        const clean = String(layer).trim();
+        return clean ? '<span class="nl-hybrid-chip">' + esc(clean) + '</span>' : '';
+    }).join('') || '<span class="nl-empty-state">—</span>';
+}
+
+function renderEvaluationBadge(item) {
+    const raw = item.evaluation_mode && String(item.evaluation_mode).trim() ? String(item.evaluation_mode).trim() : '';
+    const label = item.evaluation_label && String(item.evaluation_label).trim() ? String(item.evaluation_label).trim() : '—';
+    let cls = 'nl-state-auto';
+    if (raw === 'manual_override' || raw === 'manual_locked' || label.indexOf('مقفل') !== -1) cls = 'nl-state-locked';
+    else if (raw === 'manual_saved' || label.indexOf('يدوي') !== -1) cls = 'nl-state-manual';
+    return '<span class="nl-state-chip ' + cls + '">' + esc(label) + '</span>';
+}
+
 function renderTable(items) {
     const tb = document.getElementById('nl-tbody');
     if (!tb) return;
     if (!items.length) {
-        tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#5a7a9a;">لا توجد نتائج</td></tr>';
+        tb.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#5a7a9a;">لا توجد نتائج</td></tr>';
         return;
     }
     tb.innerHTML = items.map(function (e) {
@@ -357,6 +388,8 @@ function renderTable(items) {
             '<td style="font-size:11px;">' + esc(e.intel_type || '—') + '</td>' +
             '<td style="font-size:11px;">' + esc(e.region || '—') + '</td>' +
             '<td style="font-size:11px;color:#94a3b8;" title="' + esc(e.actor_v2 || '—') + '">' + esc(e.actor_v2 || '—') + '</td>' +
+            '<td style="font-size:11px;line-height:1.8;">' + renderHybridBadges(e) + '</td>' +
+            '<td style="font-size:11px;">' + renderEvaluationBadge(e) + '</td>' +
             '<td><span class="nl-score ' + cls + '">' + sc + '</span></td>' +
             '<td style="white-space:nowrap;"><button class="nl-btn nl-btn-primary nl-btn-sm" onclick="nlOpenEditById(' + e.id + ')">✏️</button> <button class="nl-btn nl-btn-success nl-btn-sm" onclick="nlReclassifyOneDirect(' + e.id + ')" title="إعادة تصنيف">⚙️</button></td>' +
             '</tr>';
@@ -367,7 +400,7 @@ window.nlLoad = function (p, options) {
     options = options || {};
     currentPage = p || 1;
     const tb = document.getElementById('nl-tbody');
-    if (tb) tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#5a7a9a;">جاري التحميل...</td></tr>';
+    if (tb) tb.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#5a7a9a;">جاري التحميل...</td></tr>';
     apiFetch({
         action: 'sod_newslog_search',
         nonce: nonces.search,
@@ -376,6 +409,9 @@ window.nlLoad = function (p, options) {
         actor: (document.getElementById('nl-actor') || {}).value || '',
         intel_type: (document.getElementById('nl-type') || {}).value || '',
         score: (document.getElementById('nl-score') || {}).value || '',
+        evaluation_state: (document.getElementById('nl-evaluation') || {}).value || '',
+        manual_state: (document.getElementById('nl-manual-filter') || {}).value || '',
+        hybrid_state: (document.getElementById('nl-hybrid-filter') || {}).value || '',
         page: currentPage,
         per_page: (document.getElementById('nl-per-page') || {}).value || '25'
     }).then(function (d) {
@@ -466,7 +502,8 @@ window.nlSaveItem = function () {
         weapon_v2: document.getElementById('nl-edit-weapon').value,
         target_v2: document.getElementById('nl-edit-target').value,
         context_actor: document.getElementById('nl-edit-context').value,
-        intent: document.getElementById('nl-edit-intent').value
+        intent: document.getElementById('nl-edit-intent').value,
+        manual_lock: (document.getElementById('nl-edit-manual-lock') || {}).checked ? '1' : ''
     }).then(function (d) {
         if (!d.success) {
             const err = typeof d.data === 'string' ? d.data : JSON.stringify(d.data || {});

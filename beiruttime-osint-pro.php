@@ -4588,9 +4588,9 @@ class SOD_Rate_Limiter {
     private static $instance = null;
     private $transient_prefix = 'sod_rate_limit_';
     private $limits = [
-        'ajax' => ['requests' => 60, 'seconds' => 60],
-        'dashboard' => ['requests' => 30, 'seconds' => 60],
-        'reanalyze' => ['requests' => 5, 'seconds' => 60],
+        'ajax' => ['requests' => 200, 'seconds' => 60],
+        'dashboard' => ['requests' => 100, 'seconds' => 60],
+        'reanalyze' => ['requests' => 20, 'seconds' => 60],
     ];
 
     private function __construct() {}

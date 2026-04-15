@@ -81,7 +81,12 @@ class Batch_Reindexer {
             if (!trait_exists('Beiruttime\OSINT\Traits\Singleton')) {
                 require_once __DIR__ . '/../traits/trait-singleton.php';
             }
+            if (!trait_exists('Beiruttime\OSINT\Traits\Loggable')) {
+                require_once __DIR__ . '/../traits/trait-loggable.php';
+            }
             require_once __DIR__ . '/class-hybrid-warfare.php';
+            require_once __DIR__ . '/class-verification.php';
+            require_once __DIR__ . '/class-early-warning.php';
         }
         
         $hybrid_engine = null;

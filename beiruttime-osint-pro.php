@@ -4340,7 +4340,8 @@ function sod_get_events(array $args = []): array {
     }
     if ($args['min_score'] > 0) { $where[] = 'score >= %d'; $params[] = (int)$args['min_score']; }
     $where_sql = implode(' AND ', $where);
-    $sql = "SELECT id,hash_id,title,link,source_name,source_color,intel_type,tactical_level,region,actor_v2,score,event_timestamp,image_url,war_data,sentiment_score,field_data,llm_verified FROM {$table} WHERE {$where_sql} ORDER BY event_timestamp DESC LIMIT %d OFFSET %d";
+    // إضافة الأعمدة الاستخباراتية الجديدة للاستعلام
+    $sql = "SELECT id,hash_id,title,link,source_name,source_color,intel_type,tactical_level,region,actor_v2,score,event_timestamp,image_url,war_data,sentiment_score,field_data,llm_verified,threat_score,escalation_score,hybrid_layers,actor_network,multi_domain_score,risk_level,primary_actor,reindexed_at FROM {$table} WHERE {$where_sql} ORDER BY event_timestamp DESC LIMIT %d OFFSET %d";
     $params[] = (int)$args['limit']; $params[] = (int)$args['offset'];
     $results = $wpdb->get_results($wpdb->prepare($sql,...$params),ARRAY_A);
     return is_array($results) ? $results : [];

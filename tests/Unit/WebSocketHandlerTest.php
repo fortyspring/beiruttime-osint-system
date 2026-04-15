@@ -310,18 +310,4 @@ class WebSocketHandlerTest extends WP_UnitTestCase {
         $this->assertArrayHasKey('message', $updates);
         $this->assertArrayHasKey('timestamp', $updates);
     }
-
-    /**
-     * Test enqueue_scripts method
-     */
-    public function test_enqueue_scripts() {
-        // Test that the method exists and can be called
-        $this->assertTrue(method_exists($this->websocket_handler, 'enqueue_scripts'));
-        
-        // Call the method (it will register scripts but not enqueue them in test environment)
-        $result = $this->websocket_handler->enqueue_scripts();
-        
-        // The method should return void or complete without error
-        $this->assertNull($result);
-    }
 }

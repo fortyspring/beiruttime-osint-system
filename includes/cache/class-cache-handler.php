@@ -1,8 +1,8 @@
 <?php
 /**
- * Cache Handler
+ * Cache Handler - Core Functionality
  * 
- * Handles caching with support for Redis, Memcached, and WordPress Transients.
+ * Handles basic caching operations with support for Redis, Memcached, and WordPress Transients.
  * Auto-detects available cache backends and uses the best available option.
  * 
  * @package BeirutTime_OSINT_Pro
@@ -210,48 +210,6 @@ class OSINT_Cache_Handler {
     }
     
     /**
-     * Clear cache group (keys with common prefix)
-     * 
-     * @param string $group Group prefix
-     * @return bool
-     */
-    public function clear_group($group) {
-        $pattern = $this->prefix . $group . '*';
-        
-        switch ($this->backend) {
-            case 'redis':
-                if ($this->redis) {
-                    $keys = $this->redis->keys($pattern);
-                    if (!empty($keys)) {
-                        return $this->redis->del($keys) > 0;
-                    }
-                }
-                break;
-                
-            case 'memcached':
-                // Memcached doesn't support pattern deletion, flush all (use with caution)
-                if ($this->memcached) {
-                    return $this->memcached->flush();
-                }
-                break;
-                
-            default:
-                // WordPress doesn't support group clearing efficiently
-                global $wpdb;
-                $like = $wpdb->esc_like('_transient_' . $pattern) . '%';
-                $wpdb->query(
-                    $wpdb->prepare(
-                        "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-                        $like
-                    )
-                );
-                return true;
-        }
-        
-        return false;
-    }
-    
-    /**
      * Clear all cache
      * 
      * @return bool
@@ -283,41 +241,6 @@ class OSINT_Cache_Handler {
         }
         
         return false;
-    }
-    
-    /**
-     * Cleanup old/expired cache entries
-     * 
-     * @return void
-     */
-    public function cleanup() {
-        // Redis and Memcached handle expiration automatically
-        // WordPress transients also handle this, but we can force cleanup
-        if ($this->backend === 'wp') {
-            global $wpdb;
-            $time = time();
-            $expired_time = $time - HOUR_IN_SECONDS;
-            
-            $wpdb->query(
-                $wpdb->prepare(
-                    "DELETE FROM {$wpdb->options} 
-                     WHERE option_name LIKE '_transient_timeout_%' 
-                     AND option_value < %d",
-                    $expired_time
-                )
-            );
-            
-            // Clean orphaned transient values
-            $wpdb->query(
-                "DELETE FROM {$wpdb->options} 
-                 WHERE option_name LIKE '_transient_%' 
-                 AND option_name NOT IN (
-                     SELECT REPLACE(option_name, '_transient_timeout_', '') 
-                     FROM {$wpdb->options} 
-                     WHERE option_name LIKE '_transient_timeout_%'
-                 )"
-            );
-        }
     }
     
     /**
@@ -369,5 +292,14 @@ class OSINT_Cache_Handler {
         $this->delete($test_key);
         
         return $get === $test_value;
+    }
+    
+    /**
+     * Get current backend
+     * 
+     * @return string
+     */
+    public function get_backend() {
+        return $this->backend;
     }
 }

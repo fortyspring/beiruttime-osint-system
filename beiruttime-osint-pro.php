@@ -16075,6 +16075,9 @@ function so_lebanon_district_centroids() {
 
 
 
+add_action('wp_ajax_sod_newslog_search', 'sod_ajax_newslog_search');
+add_action('wp_ajax_sod_newslog_save', 'sod_ajax_newslog_save');
+add_action('wp_ajax_sod_newslog_reclassify', 'sod_ajax_newslog_reclassify');
 add_action('wp_ajax_sod_newslog_bulk', 'sod_ajax_newslog_bulk');
 add_action('wp_ajax_sod_newslog_get_banks', 'sod_ajax_newslog_get_banks');
 add_action('wp_ajax_sod_newslog_add_to_bank', 'sod_ajax_newslog_add_to_bank');

@@ -1,46 +1,53 @@
+```
 # Dependencies
-/vendor/
-/node_modules/
+vendor/
+composer.lock
 
-# Logs and Cache
-*.log
-.cache/
-
-# Build artifacts (keep the zip file for releases)
-!/beiruttime-osint-pro.zip
+# Build directories
 build/
-dist/
 
-# IDE and Editor files
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Editor files
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
+*.tmp
 
-# OS Files
+# OS files
 .DS_Store
 Thumbs.db
 
-# Testing and Build artifacts
-/tests/
-phpunit.xml
-phpunit-simple.xml
+# Coverage reports
 coverage/
+htmlcov/
+.coverage
 
-# Frontend build files
-package.json
-package-lock.json
-webpack.config.js
-tailwind.config.js
-postcss.config.js
-.eslintrc
-.prettierrc
-jest.config.js
-babel.config.js
+# PHP specific
+*.php~
+*.bak
+*.orig
 
-# Documentation (optional, keep if needed in repo but not in plugin zip)
-/docs/
-README.md
-CHANGELOG.md
-LICENSE
+# WordPress specific
+wp-content/cache/
+*.sql
+*.sql.gz
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+```

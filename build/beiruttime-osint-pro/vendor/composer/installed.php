@@ -3,7 +3,7 @@
         'name' => 'beiruttime/osint-pro',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '7c1006d8cbb4eb2e67433d93331cc878c18bc2d8',
+        'reference' => 'a5bf0b5a4ad6822bf7ba6e6ee219833c054b90cd',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'beiruttime/osint-pro' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '7c1006d8cbb4eb2e67433d93331cc878c18bc2d8',
+            'reference' => 'a5bf0b5a4ad6822bf7ba6e6ee219833c054b90cd',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

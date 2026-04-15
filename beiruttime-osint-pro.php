@@ -9517,7 +9517,7 @@ class SO_Admin_UI {
             echo '</div>';
 
             $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
-            $pending_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
+            $pending_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL OR hybrid_layers IS NULL OR hybrid_layers = ''");
             
             echo '<script>
             var btConfig = {
@@ -9649,7 +9649,7 @@ class SO_Admin_UI {
             </script>';
         } else {
             $total = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
-            $pending = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL");
+            $pending = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table_name} WHERE threat_score = 0 OR threat_score IS NULL OR hybrid_layers IS NULL OR hybrid_layers = ''");
             ?>
             <h2>🛠️ إعادة بناء الأرشفة الاستخباراتية</h2>
             <p>إعادة تحليل الأحداث القديمة باستخدام محركات الحرب المركبة وOSINT المتقدم.</p>
@@ -16247,8 +16247,8 @@ function sod_ajax_bt_reindex_batch() {
         $reindexer = new \Beiruttime\OSINT\Services\Batch_Reindexer();
         $result = $reindexer->run_batch($batch_size, 0, false);
         
-        // حساب المتبقي بناءً على الأحداث التي لم تُعالج بعد
-        $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE threat_score = 0 OR threat_score IS NULL");
+        // حساب المتبقي بناءً على الأحداث التي لم تُعالج بعد (تشمل hybrid_layers الفارغة)
+        $total_events = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$reindexer->table_name} WHERE threat_score = 0 OR threat_score IS NULL OR hybrid_layers IS NULL OR hybrid_layers = ''");
         $processed_count = $result['stats']['updated'] ?? 0;
         $remaining = max(0, $total_events - $processed_count);
         

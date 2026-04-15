@@ -56,13 +56,13 @@ class Batch_Reindexer {
         
         $this->stats['start_time'] = microtime(true);
         
-        // جلب الأحداث التي لم تُحلل بعد (threat_score = 0 أو NULL) فقط
+        // جلب الأحداث التي لم تُحلل بعد (threat_score = 0 أو NULL أو hybrid_layers فارغة)
         // نستخدم ID للترقيم بدلاً من OFFSET لضمان عدم معالجة الأحداث المكررة
         $events = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT id, title, content, war_data, actor_v2, region, score, osint_type, hybrid_layers 
                  FROM {$this->table_name} 
-                 WHERE threat_score = 0 OR threat_score IS NULL
+                 WHERE (threat_score = 0 OR threat_score IS NULL OR hybrid_layers IS NULL OR hybrid_layers = '')
                  ORDER BY id ASC 
                  LIMIT %d",
                 $limit

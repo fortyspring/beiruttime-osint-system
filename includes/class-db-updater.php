@@ -29,7 +29,13 @@ class Beiruttime_OSINT_DB_Updater {
             'actor_network' => "JSON NULL COMMENT 'شبكة الفاعلين المرتبطة'",
             'early_warning_flag' => "TINYINT(1) DEFAULT 0 COMMENT 'علم الإنذار المبكر'",
             'warning_level' => "VARCHAR(20) DEFAULT 'none' COMMENT 'مستوى التحذير'",
-            'processed_at' => "DATETIME NULL COMMENT 'وقت معالجة الخبر بالنظام الجديد'"
+            'processed_at' => "DATETIME NULL COMMENT 'وقت معالجة الخبر بالنظام الجديد'",
+            'reindexed_at' => "DATETIME NULL COMMENT 'وقت إعادة المعالجة'",
+            'osint_type' => "VARCHAR(50) DEFAULT '' COMMENT 'نوع OSINT'",
+            'multi_domain_score' => "DECIMAL(5,3) DEFAULT 0.000 COMMENT 'درجة التعددية المجال'",
+            'escalation_score' => "INT DEFAULT 0 COMMENT 'درجة التصعيد (0-100)'",
+            'risk_level' => "VARCHAR(20) DEFAULT 'منخفض' COMMENT 'مستوى الخطر'",
+            'primary_actor' => "VARCHAR(255) DEFAULT '' COMMENT 'الفاعل الرئيسي'"
         ];
 
         $changes_made = false;

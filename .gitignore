@@ -15,71 +15,38 @@ __pycache__/
 .venv/
 venv/
 node_modules/
-pip-log.txt
-pipenv.lock
-requirements.txt.bak
-*.egg-info/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+.gradle/
 
 # Logs and temp files
 *.log
 *.tmp
 *.swp
 *.swo
-*.bak
-*.~
-*~
 
-# Environment variables
+# Environment
 .env
 .env.local
-.env.*
-!.env.example
+*.env.*
 
-# Editors and IDEs
+# Editors
 .vscode/
 .idea/
-*.sublime-project
-*.sublime-workspace
-.project
-.classpath
-.settings/
 
-# OS generated files
+# System files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-Thumbs.db:encryptable
 
-# Testing and coverage
-.coverage
+# Coverage
 coverage/
 htmlcov/
-.nyc_output/
-istanbul/
-.mypy_cache/
-.pytest_cache/
-.hypothesis/
+.coverage
 
-# Distribution / packaging
-*.tar.gz
-*.whl
-*.egg
-dist/
-build/
-*.egg-info/
-.installed.cfg
-*.manifest
-*.spec
-
-# CI
-.github/
-.gitlab/
-
-# Compression archives
+# Compressed files
 *.zip
 *.gz
 *.tar

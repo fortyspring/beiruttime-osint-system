@@ -7,8 +7,9 @@
 .cache/
 
 # Build artifacts (keep the zip file for releases)
-# !beiruttime-osint-pro.zip
+!/beiruttime-osint-pro.zip
 build/
+dist/
 
 # IDE and Editor files
 .vscode/
@@ -26,9 +27,8 @@ Thumbs.db
 phpunit.xml
 phpunit-simple.xml
 coverage/
-build/
-dist/
-*.zip
+
+# Frontend build files
 package.json
 package-lock.json
 webpack.config.js

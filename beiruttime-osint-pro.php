@@ -1494,6 +1494,10 @@ function so_cleanup_duplicate_news_events($limit = 1200) {
 function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
     global $wpdb;
     $table = $wpdb->prefix . 'so_news_events';
+    
+    // Debug log
+    error_log("SO_Reanalyze_Batch: Limit=$limit, Offset=$offset, Table=$table");
+    
     $rows = $wpdb->get_results($wpdb->prepare(
         "SELECT * FROM {$table}
          ORDER BY id DESC
@@ -1502,13 +1506,21 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
         (int)$offset
     ), ARRAY_A);
 
-    if (empty($rows)) return ['updated' => 0, 'scanned' => 0, 'next_offset' => $offset, 'total' => 0, 'done' => true];
+    if (empty($rows)) {
+        error_log("SO_Reanalyze_Batch: No rows found. Empty result.");
+        return ['updated' => 0, 'scanned' => 0, 'next_offset' => $offset, 'total' => 0, 'done' => true];
+    }
+    
+    error_log("SO_Reanalyze_Batch: Found " . count($rows) . " rows to process.");
 
     $updated = 0;
     $locked = 0;
     foreach ($rows as $row) {
         $title = (string)($row['title'] ?? '');
-        if ($title === '') continue;
+        if ($title === '') {
+            error_log("SO_Reanalyze_Batch: Skipping row ID " . ($row['id'] ?? '?') . " - empty title");
+            continue;
+        }
 
         if (sod_is_manual_locked_row($row)) {
             $update = sod_mark_evaluation_state($row, [
@@ -1517,6 +1529,7 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
             ], 'manual_override');
             sod_db_safe_update($table, $update, ['id' => (int)$row['id']]);
             $locked++;
+            error_log("SO_Reanalyze_Batch: Row ID " . $row['id'] . " is manually locked.");
             continue;
         }
 
@@ -1532,7 +1545,10 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
         ];
 
         $analyzed = SO_OSINT_Engine::process_event($item);
-        if (!$analyzed || !is_array($analyzed)) continue;
+        if (!$analyzed || !is_array($analyzed)) {
+            error_log("SO_Reanalyze_Batch: Process event failed for ID " . $row['id']);
+            continue;
+        }
         $analyzed = sod_finalize_reanalysis_payload($row, $item, $analyzed);
         $wd = sod_parse_json_array($analyzed['war_data'] ?? '{}');
         $target_v2 = (string)($wd['target'] ?? ($analyzed['target_v2'] ?? ''));
@@ -1558,6 +1574,7 @@ function so_reanalyze_all_news_events($limit = 3000, $offset = 0) {
         $res = sod_db_safe_update($table, $update_payload, ['id' => (int)$row['id']]);
         if (!empty($res['ok'])) {
             $updated++;
+            error_log("SO_Reanalyze_Batch: Updated row ID " . $row['id']);
             foreach ([['types',$update_payload['intel_type']],['levels',$update_payload['tactical_level']],['regions',$update_payload['region']],['actors',$update_payload['actor_v2']],['targets',$target_v2],['contexts',$context_actor],['intents',$intent],['weapons',$weapon_v2]] as $pair) {
                 [$bk,$val] = $pair;
                 if ($val !== '' && $val !== 'فاعل غير محسوم' && $val !== 'غير محدد') sod_add_bank_value($bk, $val);
@@ -11552,10 +11569,24 @@ public static function ajax_db_stats() {
     global $wpdb;
     $table = $wpdb->prefix . 'so_news_events';
     
-    $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-    $updated = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE intel_type != '' AND intel_type IS NOT NULL");
-    $locked = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE manual_override = 1");
+    // Check if table exists
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") == $table;
+    
+    if ($table_exists) {
+        $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        $updated = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE intel_type != '' AND intel_type IS NOT NULL");
+        $locked = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE manual_override = 1");
+    } else {
+        // Fallback to standard posts if custom table doesn't exist
+        $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = 'post' AND post_status = 'publish'");
+        $updated = $total;
+        $locked = 0;
+    }
+    
     $pending = $total - $updated;
+    
+    // Log for debugging
+    error_log("SO_Dashboard_Stats: Total=$total, Updated=$updated, Locked=$locked, TableExists=" . ($table_exists ? 'yes' : 'no'));
     
     wp_send_json_success([
         'total' => $total,

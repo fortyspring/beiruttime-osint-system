@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit575dc8b1c514be7a201353d82adf30cb
+class ComposerStaticInit407eced006cedb7c2ed9e715f247ed20
 {
     public static $files = array (
         'e672fe037c8e71adcfeb4ff0a4ec0708' => __DIR__ . '/../..' . '/includes/modules/class-module-interface.php',
@@ -12,7 +12,7 @@ class ComposerStaticInit575dc8b1c514be7a201353d82adf30cb
     );
 
     public static $prefixLengthsPsr4 = array (
-        'O' => 
+        'O' =>
         array (
             'OSINT\\Pro\\Utils\\' => 16,
             'OSINT\\Pro\\Traits\\' => 17,
@@ -21,38 +21,38 @@ class ComposerStaticInit575dc8b1c514be7a201353d82adf30cb
             'OSINT\\Pro\\Core\\' => 15,
             'OSINT\\Pro\\' => 10,
         ),
-        'C' => 
+        'C' =>
         array (
             'Composer\\Installers\\' => 20,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'OSINT\\Pro\\Utils\\' => 
+        'OSINT\\Pro\\Utils\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src/utils',
         ),
-        'OSINT\\Pro\\Traits\\' => 
+        'OSINT\\Pro\\Traits\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src/traits',
         ),
-        'OSINT\\Pro\\Services\\' => 
+        'OSINT\\Pro\\Services\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src/services',
         ),
-        'OSINT\\Pro\\Includes\\' => 
+        'OSINT\\Pro\\Includes\\' =>
         array (
             0 => __DIR__ . '/../..' . '/includes',
         ),
-        'OSINT\\Pro\\Core\\' => 
+        'OSINT\\Pro\\Core\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src/core',
         ),
-        'OSINT\\Pro\\' => 
+        'OSINT\\Pro\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
-        'Composer\\Installers\\' => 
+        'Composer\\Installers\\' =>
         array (
             0 => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers',
         ),
@@ -167,9 +167,9 @@ class ComposerStaticInit575dc8b1c514be7a201353d82adf30cb
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit575dc8b1c514be7a201353d82adf30cb::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit575dc8b1c514be7a201353d82adf30cb::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit575dc8b1c514be7a201353d82adf30cb::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit407eced006cedb7c2ed9e715f247ed20::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit407eced006cedb7c2ed9e715f247ed20::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit407eced006cedb7c2ed9e715f247ed20::$classMap;
 
         }, null, ClassLoader::class);
     }

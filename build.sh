@@ -38,6 +38,8 @@ echo -e "${GREEN}📋 نسخ الملفات الأساسية...${NC}"
 # قائمة الملفات والمجلدات المطلوبة
 FILES_TO_COPY=(
     "beiruttime-osint-pro.php"
+    "osint-hybrid-warfare-update.php"
+    "osint-threat-radar.php"
     "README.txt"
     "README.md"
     "CHANGELOG.md"
